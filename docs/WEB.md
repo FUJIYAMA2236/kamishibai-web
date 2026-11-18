@@ -27,4 +27,7 @@ Cloudflare Pages（Git 連携）の設定:
 - 発表・資料のプレビューは `/viewer/`（`src/app/viewer.js`）が組み立てた HTML を受け取って表示する
 - PDF は印刷ダイアログ（「PDF に保存」）で作る
 - HTML の書き出しは常に画像を埋め込む（`_files` フォルダは作らない）
-- `_headers` でエディタに CSP を付ける
+- `_headers` でエディタに CSP を付ける。`vendor/` は 1 日キャッシュ
+- 編集できるのは 1 つのタブだけ（Web Locks）。別のタブで「このタブで使う」を押すと、元のタブは止まる（上書き防止）
+- .kami をページにドラッグ＆ドロップしても開ける
+- PWA: インストールでき、サービスワーカー（`src/app/sw.js` → `/sw.js`）でオフラインでも動く。Chrome / Edge でインストールすると、.kami をダブルクリックして開ける（`file_handlers` / `launchQueue`）

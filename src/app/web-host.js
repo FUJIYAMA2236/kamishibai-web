@@ -49,6 +49,7 @@
   }
   /** IndexedDB への書き込み（ops: [[store, 'put'|'delete', key, value]]） */
   function persist(ops) {
+    if (lost) return Promise.reject(new Error('別のタブで開かれたため、このタブでは保存できません'));
     if (!db || !ops.length) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const t = db.transaction(['files', 'dirs', 'mounts'], 'readwrite');
@@ -447,8 +448,62 @@
     }
   }
 
+  // ---- 複数のタブで同時に開かない ----
+  //   タブごとに中身をメモリに持つので、2 つのタブで編集すると後から保存した側が上書きしてしまう。
+  //   Web Locks で「編集できるのは 1 つのタブだけ」にする。別のタブで「こちらで使う」を押すと、元のタブは止まる。
+  const LOCK = 'kamishibai-editor';
+  let lost = false;
+  function overlay(title, text, button, onclick) {
+    let el = document.getElementById('ksTabLock');
+    if (el) el.remove();
+    el = document.createElement('div');
+    el.id = 'ksTabLock';
+    el.style.cssText = 'position:fixed;inset:0;z-index:100000;display:flex;align-items:center;justify-content:center;background:rgba(10,12,20,.82);color:#fff;font:15px/1.7 system-ui,sans-serif;padding:16px';
+    const box = document.createElement('div');
+    box.style.cssText = 'max-width:440px;background:#1c1f2b;border:1px solid #3a3f55;border-radius:12px;padding:24px';
+    const h = document.createElement('b');
+    h.textContent = title;
+    h.style.cssText = 'display:block;font-size:17px;margin-bottom:8px';
+    const p = document.createElement('p');
+    p.textContent = text;
+    p.style.margin = '0 0 16px';
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = button;
+    b.style.cssText = 'font:inherit;padding:8px 16px;border-radius:8px;border:0;background:#7c8cff;color:#fff;cursor:pointer';
+    b.onclick = onclick;
+    box.append(h, p, b);
+    el.append(box);
+    (document.body || document.documentElement).append(el);
+  }
+  /** 編集の権利を取る（取れるまで待つ）。取ったあとに別のタブへ移されたら、このタブを止める */
+  function acquireTab() {
+    if (!navigator.locks) return Promise.resolve();
+    return new Promise((resolve) => {
+      const hold = () => new Promise(() => {}); // タブを閉じるまで持ち続ける
+      const onLost = (e) => {
+        if (!e || e.name !== 'AbortError') return;
+        lost = true;
+        overlay('別のタブで開かれました', 'このタブでの編集は止めました（内容が上書きされないように）。続けるときは、ページを読み込み直してください。', '読み込み直す', () => location.reload());
+      };
+      navigator.locks.request(LOCK, { ifAvailable: true }, (lock) => {
+        if (!lock) {
+          overlay('Kamishibai は別のタブで開いています', '同じ内容を 2 つのタブで編集すると上書きしてしまうため、編集できるのは 1 つのタブだけです。こちらのタブで使うと、もう一方のタブは止まります。', 'このタブで使う', () => {
+            document.getElementById('ksTabLock').remove();
+            navigator.locks.request(LOCK, { steal: true }, () => { resolve(); return hold(); }).catch(onLost);
+          });
+          return null;
+        }
+        resolve();
+        return hold();
+      }).catch(onLost);
+    });
+  }
+
   // ---- 起動 ----
   const ready = (async () => {
+    // 編集の権利を取ってから読み込む（別のタブが書いた最新の内容を読むため）
+    await acquireTab();
     try {
       db = await idbOpen();
       for (const [k, v] of await idbAll('dirs')) dirs.set(k, v);
@@ -615,6 +670,57 @@
       await backend.open(last.path);
     } catch (e) { /* スタート画面を出す */ }
   })();
+
+  // ==================================================================
+  // .kami をドラッグ＆ドロップで開く・インストールしたアプリ（PWA）で .kami をダブルクリックして開く
+  // ==================================================================
+  /** File（とあれば手元のファイルのハンドル）から開く */
+  async function openDropped(file, handle) {
+    const p = P.join(slot(), file.name);
+    await vfs.write(p, new Uint8Array(await file.arrayBuffer()));
+    if (handle) {
+      let perm = 'denied';
+      try {
+        perm = await handle.queryPermission({ mode: 'readwrite' });
+        if (perm !== 'granted') perm = await handle.requestPermission({ mode: 'readwrite' });
+      } catch (e) { /* 書き込みの許可は得られない */ }
+      if (perm === 'granted') await addMount(p, handle);
+      else toast('このブラウザの中のコピーとして開きました。手元のファイルに自動保存するときは「ファイルを開く」から開いてください');
+    }
+    await backend.open(p);
+  }
+  const isKami = (name) => /\.kami$/i.test(name || '');
+  window.addEventListener('dragover', (e) => {
+    if (e.dataTransfer && Array.from(e.dataTransfer.types || []).indexOf('Files') >= 0) e.preventDefault();
+  });
+  window.addEventListener('drop', (e) => {
+    const dt = e.dataTransfer;
+    const items = dt && dt.items ? Array.from(dt.items).filter((it) => it.kind === 'file') : [];
+    const file = dt && dt.files && Array.from(dt.files).find((f) => isKami(f.name));
+    if (!file) return; // 画像などはエディタに任せる
+    e.preventDefault();
+    e.stopPropagation();
+    // ハンドルは drop の最中にしか取れない
+    const item = items.find((it) => it.getAsFile() && isKami(it.getAsFile().name));
+    const handleP = item && item.getAsFileSystemHandle ? item.getAsFileSystemHandle().catch(() => null) : Promise.resolve(null);
+    leave('別のものを開く', async () => openDropped(file, await handleP))();
+  }, true);
+  // どこにも受け取られなかったファイルで、ページがそのファイルに移動してしまわないように
+  window.addEventListener('drop', (e) => { if (e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files.length) e.preventDefault(); });
+
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (params) => {
+      const h = params.files && params.files.find((x) => x.kind === 'file' && isKami(x.name));
+      if (!h) return;
+      await window.KSDesktop.startup;
+      await leave('別のものを開く', async () => openDropped(await h.getFile(), h))();
+    });
+  }
+
+  // ---- オフラインでも動くように（サービスワーカー）----
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch((e) => console.warn('[kamishibai] service worker:', e)); });
+  }
 
   // 保存していないサンプルなどを閉じようとしたら、ブラウザの確認を出す
   window.addEventListener('beforeunload', (e) => {

@@ -51,11 +51,55 @@ let html = fs.readFileSync(path.join(ROOT, 'src', 'editor', 'index.html'), 'utf8
 const tauri = '<script src="/app/tauri-host.js"></script>';
 if (html.indexOf(tauri) < 0) throw new Error('index.html に tauri-host.js の読み込みが見つかりません');
 html = html.replace(tauri, '<script src="/app/web-host.js"></script>');
+// PWA（インストール・.kami のダブルクリックで開く）
+html = html.replace('</head>', '<link rel="manifest" href="/manifest.webmanifest">\n<meta name="theme-color" content="#151824">\n<link rel="apple-touch-icon" href="/icons/icon-256.png">\n</head>');
 fs.writeFileSync(path.join(OUT, 'index.html'), html);
+
+fs.mkdirSync(path.join(OUT, 'icons'), { recursive: true });
+fs.copyFileSync(path.join(ROOT, 'build', 'icon.png'), path.join(OUT, 'icons', 'icon-512.png'));
+fs.copyFileSync(path.join(ROOT, 'src-tauri', 'icons', '128x128@2x.png'), path.join(OUT, 'icons', 'icon-256.png'));
+const version = require('../package.json').version;
+fs.writeFileSync(path.join(OUT, 'manifest.webmanifest'), JSON.stringify({
+  name: 'Kamishibai',
+  short_name: 'Kamishibai',
+  description: 'Markdown で書いて GUI で整える、HTML スライド作成ツール',
+  lang: 'ja',
+  start_url: '/',
+  scope: '/',
+  display: 'standalone',
+  background_color: '#151824',
+  theme_color: '#151824',
+  icons: [
+    { src: '/icons/icon-256.png', sizes: '256x256', type: 'image/png' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+    { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+  ],
+  // インストールしたアプリで .kami を開けるようにする（Chrome / Edge。web-host.js の launchQueue）
+  file_handlers: [{ action: '/', accept: { 'application/x-kamishibai': ['.kami'] }, icons: [{ src: '/icons/icon-256.png', sizes: '256x256', type: 'image/png' }] }],
+  launch_handler: { client_mode: 'focus-existing' },
+}, null, 2));
 
 // 発表・資料・印刷のウィンドウ（app/viewer.js がエディタから HTML を受け取って書き込む）
 fs.mkdirSync(path.join(OUT, 'viewer'), { recursive: true });
 fs.writeFileSync(path.join(OUT, 'viewer', 'index.html'), '<!doctype html>\n<html lang="ja"><head><meta charset="utf-8"><title>Kamishibai</title></head>\n<body><script src="/app/viewer.js"></script></body></html>\n');
+
+// サービスワーカー（オフラインで動くように、全ファイルを手元に持つ）。中身が変わると名前（CACHE）が変わり、古いものは消える
+function listFiles(dir, prefix, out) {
+  for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === '_headers') continue;
+    if (e.isDirectory()) listFiles(path.join(dir, e.name), prefix + e.name + '/', out);
+    else out.push(prefix + e.name);
+  }
+  return out;
+}
+const swSource = fs.readFileSync(path.join(OUT, 'app', 'sw.js'), 'utf8');
+fs.rmSync(path.join(OUT, 'app', 'sw.js')); // ルート（/sw.js）に置く
+const precache = listFiles(OUT, '/', []).map((f) => (f === '/index.html' ? '/' : f.endsWith('/index.html') ? f.slice(0, -'index.html'.length) : f));
+const hash = require('crypto').createHash('sha256');
+for (const f of listFiles(OUT, '', []).sort()) hash.update(f).update(fs.readFileSync(path.join(OUT, f)));
+fs.writeFileSync(path.join(OUT, 'sw.js'), swSource
+  .replace("'__CACHE__'", JSON.stringify('kamishibai-' + version + '-' + hash.digest('hex').slice(0, 12)))
+  .replace('[] /* __FILES__ */', JSON.stringify(precache)));
 
 fs.writeFileSync(path.join(OUT, '404.html'), '<!doctype html><meta charset="utf-8"><title>Not found</title><p>Not found</p>\n');
 
@@ -77,7 +121,10 @@ fs.writeFileSync(path.join(OUT, '_headers'), [
   '/*',
   '  X-Content-Type-Options: nosniff',
   '  Referrer-Policy: no-referrer',
-  '  Cache-Control: no-cache',
+  '',
+  // ライブラリは大きく、めったに変わらないので 1 日はキャッシュする（新しい版はサービスワーカーの入れ替えでも届く）
+  '/vendor/*',
+  '  Cache-Control: public, max-age=86400',
   '',
   '/',
   '  Content-Security-Policy: ' + CSP,
