@@ -1049,7 +1049,7 @@
           h('button', { class: 'btn small', type: 'button', onclick: () => importTheme('file') }, 'theme.json / zip を読み込む…')),
         h('div', { class: 'row-actions' },
           h('button', { class: 'btn small', type: 'button', title: '使用中のテーマを zip にします。人に渡すと、上の「読み込む」でそのまま使えます', onclick: exportTheme }, '使用中のテーマを zip に書き出す…'),
-          h('button', {
+          window.KSWeb ? '' : h('button', {
             class: 'btn small ghost', type: 'button', title: 'ここにテーマのフォルダを置いても読み込まれます',
             onclick: () => api('POST', '/api/themes/reveal', {}).catch((e) => toast(e.message, true)),
           }, 'テーマのフォルダを開く')),
@@ -1158,7 +1158,9 @@
     $('#projectName').textContent = d.name;
     $('#projectKind').textContent = info.temporary ? '未保存' : info.kamiFile ? '.kami' : 'フォルダ';
     $('#projectKind').dataset.kind = info.temporary ? 'temp' : info.kamiFile ? 'kami' : 'folder';
-    $('#projectPath').textContent = info.temporary ? '保存先はまだありません。「1 ファイルとして保存」か「フォルダとして保存」で決めてください。' : info.kamiFile || info.dir;
+    $('#projectPath').textContent = info.temporary
+      ? (window.KSWeb ? '保存先はまだありません。「1 ファイル（.kami）として保存」で決めてください。' : '保存先はまだありません。「1 ファイルとして保存」か「フォルダとして保存」で決めてください。')
+      : window.KSWeb ? (window.KSDesktop.describe ? window.KSDesktop.describe(info.kamiFile) : info.kamiFile) : info.kamiFile || info.dir;
     document.body.classList.remove('is-start');
     $('#startScreen').hidden = true;
     renderPanel();
@@ -1214,7 +1216,13 @@
     const actionsEl = $('#startActions');
     actionsEl.innerHTML = '';
     const card = (icon, title, sub, onclick, primary) => h('button', { type: 'button', class: 'start-action' + (primary ? ' is-primary' : ''), onclick, html: svg(icon) + '<b>' + render.esc(title) + '</b><small>' + render.esc(sub) + '</small>' });
-    if (bridge) {
+    if (bridge && window.KSWeb) {
+      // Web 版は .kami だけ（フォルダの形は扱わない）
+      actionsEl.append(
+        card('<path d="M6 3.5h8l4 4v13H6z"/><path d="M12 11v5M9.5 13.5h5"/>', '新規作成', '.kami — 画像も含めて 1 ファイル', () => fileAction('newKami'), true),
+        card('<path d="M6 3.5h8l4 4v13H6z"/><path d="M14 3.5v4h4"/>', 'ファイルを開く', '.kami ファイル', () => fileAction('openFile')),
+      );
+    } else if (bridge) {
       actionsEl.append(
         card('<path d="M3.5 7.5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-13a2 2 0 0 1-2-2z"/><path d="M12 11v5M9.5 13.5h5"/>', '新規作成（フォルダ）', 'git で管理しやすい形', () => fileAction('newFolder'), true),
         card('<path d="M6 3.5h8l4 4v13H6z"/><path d="M12 11v5M9.5 13.5h5"/>', '新規作成（1 ファイル）', '.kami — 画像も含めて 1 ファイル', () => fileAction('newKami')),
@@ -1231,21 +1239,26 @@
       recent.append(h('div', { class: 'start-label' }, '最近使ったもの'));
       for (const r of s.recent) {
         recent.append(h('button', {
-          type: 'button', class: 'start-recent-item', title: r.path,
+          type: 'button', class: 'start-recent-item', title: r.label || r.path,
           onclick: () => (bridge ? bridge.openPath(r.path) : browserAction('open', { path: r.path })),
-        }, h('span', { class: 'kind' }, r.kind === 'kami' ? '.kami' : 'フォルダ'), h('b', null, r.name), h('small', null, r.path)));
+        }, h('span', { class: 'kind' }, r.kind === 'kami' ? '.kami' : 'フォルダ'), h('b', null, r.name), h('small', null, r.label || r.path)));
       }
     }
   }
 
   function initFileMenu() {
     const menu = $('#fileMenu');
+    // Web 版は .kami だけ。フォルダの項目と、それで空になった区切り線を消す
+    if (window.KSWeb) {
+      menu.querySelectorAll('[data-file="newFolder"], [data-file="openFolder"], [data-file="saveAsFolder"]').forEach((b) => b.remove());
+      menu.querySelectorAll('.menu-sep').forEach((s) => { const n = s.nextElementSibling; if (!n || n.classList.contains('menu-sep')) s.remove(); });
+    }
     $('#projectBtn').addEventListener('click', (e) => {
       e.stopPropagation();
       // 開いていないときはメニューを出さず、スタート画面のまま
       if (!state.project) return;
       menu.hidden = !menu.hidden;
-      menu.querySelector('[data-file="reveal"]').hidden = !!state.project.temporary;
+      menu.querySelector('[data-file="reveal"]').hidden = !!state.project.temporary || !!window.KSWeb;
     });
     document.addEventListener('click', (e) => { if (!menu.hidden && !menu.contains(e.target)) menu.hidden = true; });
     menu.addEventListener('click', (e) => {
@@ -1267,6 +1280,18 @@
   }
   function exportDialog(title, r) {
     const esc = render.esc;
+    if (window.KSWeb) {
+      // Web 版: 印刷ダイアログ（PDF）/ ダウンロード / 選んだファイルに保存
+      const msg = r.print
+        ? '別のウィンドウで印刷画面を開きました。送信先（プリンター）で「PDF に保存」を選ぶと PDF になります。'
+        : r.downloaded ? 'ダウンロードしました（' + kb(r.bytes) + '）。' : '選んだファイルに保存しました（' + kb(r.bytes) + '）。';
+      showInfo(
+        '<h2>' + esc(r.print ? 'PDF を作る' : title) + '</h2><p>' + esc(msg) + '</p>' +
+        (r.warnings.length ? '<ul>' + r.warnings.map((w) => '<li>' + esc(w) + '</li>').join('') + '</ul>' : '') +
+        (r.file && /\.html$/i.test(r.file) ? '<div class="dialog-actions" style="justify-content:flex-start;margin-top:0"><button class="btn" type="button" data-open-file="' + esc(r.file) + '">開く</button></div>' : '')
+      );
+      return;
+    }
     const note = /\.pdf$/i.test(r.file) ? '' : r.files ? '画像などは隣の「_files」フォルダに置きました。HTML と一緒に持ち運んでください。' : 'このファイルだけで完結しているので、そのまま持ち出せます。';
     showInfo(
       '<h2>' + esc(title) + '</h2><p>次の場所に保存しました（' + kb(r.bytes) + '）。' + note + '</p>' +

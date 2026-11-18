@@ -17,3 +17,6 @@ src-tauri/gen/
 
 # 開発の引き継ぎメモ（手元だけで管理し、リポジトリには入れない）
 CLAUDE.md
+
+# Web 版（Cloudflare Pages）の生成物
+web-dist/
