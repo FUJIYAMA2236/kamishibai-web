@@ -1,6 +1,6 @@
 [package]
 name = "kamishibai"
-version = "0.4.1"
+version = "0.4.2"
 description = "Markdown で書いて GUI で整えるスライドツール"
 license = "MIT"
 edition = "2021"

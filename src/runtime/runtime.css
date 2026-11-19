@@ -472,6 +472,25 @@
 }
 .ks-cols[data-count='3'] { --ks-col-base: 0.9; }
 .ks-cols:is([data-count='4'], [data-count='5'], [data-count='6']) { --ks-col-base: 0.8; }
+/* 並べ方（data-col-dir。render.js）: column = 縦に並べる（幅はいっぱい・高さを等分）/ grid = 2 列の格子 */
+.ks-slide[data-col-dir='column'] .ks-cols {
+  grid-auto-flow: row;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: none;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: calc(var(--ks-padding) * 0.4);
+  --ks-col-base: 1; /* 幅はいっぱいに使えるので、列が多くても小さくしない（入りきらなければ fitColumns が縮める） */
+}
+.ks-slide[data-col-dir='grid'] .ks-cols {
+  grid-auto-flow: row;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-rows: none;
+  grid-auto-rows: minmax(0, 1fr);
+  gap: calc(var(--ks-padding) * 0.45);
+  --ks-col-base: 0.9;
+}
+/* 格子で数が奇数のときは、最後の 1 つを横いっぱいに */
+.ks-slide[data-col-dir='grid'] .ks-col:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .ks-cols-pre,
 .ks-cols-post {
   flex: none;

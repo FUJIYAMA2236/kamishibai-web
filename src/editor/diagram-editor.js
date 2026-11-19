@@ -330,7 +330,7 @@
     const parts = [];
     for (const it of ed.model.items) {
       let hit = '';
-      if (it.type === 'shape') hit = '<rect class="dg-hit" x="' + it.x + '" y="' + it.y + '" width="' + it.w + '" height="' + it.h + '"/>';
+      if (it.type === 'shape') hit = '<rect class="dg-hit" x="' + it.x + '" y="' + it.y + '" width="' + it.w + '" height="' + it.h + '"' + rotAttr(it) + '/>';
       else {
         const pts = D.linePoints(it, idx);
         hit = '<polyline class="dg-hit-line" points="' + pts.map((p) => p.x + ',' + p.y).join(' ') + '"/>';
@@ -347,6 +347,21 @@
     for (const k in attrs) e.setAttribute(k, attrs[k]);
     return e;
   }
+  /** 回した図形に合わせる transform 属性（回していなければ空） */
+  function rotAttr(it) {
+    const r = D.rotOf(it);
+    if (!r) return '';
+    const c = D.center(it);
+    return ' transform="rotate(' + r + ' ' + c.x + ' ' + c.y + ')"';
+  }
+  /** 選択の枠・ハンドルを入れる g（回した図形のときは一緒に回す） */
+  function rotGroup(it, parent) {
+    const g = el('g', {});
+    const r = D.rotOf(it);
+    if (r) { const c = D.center(it); g.setAttribute('transform', 'rotate(' + r + ' ' + c.x + ' ' + c.y + ')'); }
+    parent.append(g);
+    return g;
+  }
 
   function renderOverlay() {
     if (!ed) return;
@@ -358,7 +373,7 @@
     const sel = selected();
     for (const it of sel) {
       if (it.type === 'shape') {
-        over.append(el('rect', { class: 'dg-sel', x: it.x, y: it.y, width: it.w, height: it.h, 'stroke-width': 1.5 / z }));
+        rotGroup(it, over).append(el('rect', { class: 'dg-sel', x: it.x, y: it.y, width: it.w, height: it.h, 'stroke-width': 1.5 / z }));
       } else {
         const pts = D.linePoints(it, idx);
         over.append(el('polyline', { class: 'dg-sel-line', points: pts.map((p) => p.x + ',' + p.y).join(' '), 'stroke-width': 6 / z }));
@@ -366,13 +381,19 @@
     }
     if (sel.length === 1 && sel[0].type === 'shape') {
       const it = sel[0];
+      const g = rotGroup(it, over);
       const pos = { nw: [0, 0], n: [0.5, 0], ne: [1, 0], e: [1, 0.5], se: [1, 1], s: [0.5, 1], sw: [0, 1], w: [0, 0.5] };
       for (const k in pos) {
-        over.append(el('rect', {
+        g.append(el('rect', {
           class: 'dg-handle', 'data-handle': k, x: it.x + it.w * pos[k][0] - hs / 2, y: it.y + it.h * pos[k][1] - hs / 2,
-          width: hs, height: hs, 'stroke-width': 1.2 / z, style: 'cursor:' + k + '-resize',
+          width: hs, height: hs, 'stroke-width': 1.2 / z, style: D.rotOf(it) ? 'cursor:move' : 'cursor:' + k + '-resize',
         }));
       }
+      // 回転のつまみ（上の辺の中央から少し離した丸）。ドラッグで回す（15° ごと。Alt で自由に）
+      const rx = it.x + it.w / 2;
+      const ry = it.y - 26 / z;
+      g.append(el('line', { class: 'dg-rot-line', x1: rx, y1: it.y, x2: rx, y2: ry, 'stroke-width': 1.2 / z }));
+      g.append(el('circle', { class: 'dg-handle is-rot', 'data-handle': 'rot', cx: rx, cy: ry, r: hs * 0.75, 'stroke-width': 1.2 / z }));
     }
     if (sel.length === 1 && sel[0].type === 'line') {
       const pts = D.linePoints(sel[0], idx);
@@ -383,7 +404,7 @@
     // 線をつなぐ口（マウスを乗せている図形・線を引いている途中のつなぎ先）
     const target = ed.hover && find(ed.hover);
     if (target && target.type === 'shape' && (ed.tool === 'select' || ed.tool.indexOf('line') === 0 || (ed.drag && ed.drag.kind === 'end'))) {
-      if (ed.drag && ed.drag.kind === 'end') over.append(el('rect', { class: 'dg-target', x: target.x, y: target.y, width: target.w, height: target.h, 'stroke-width': 2 / z }));
+      if (ed.drag && ed.drag.kind === 'end') rotGroup(target, over).append(el('rect', { class: 'dg-target', x: target.x, y: target.y, width: target.w, height: target.h, 'stroke-width': 2 / z }));
       else {
         for (const side of ['top', 'right', 'bottom', 'left']) {
           const p = D.sidePoint(target, side);
@@ -506,7 +527,7 @@
     for (let i = ed.model.items.length - 1; i >= 0; i--) {
       const it = ed.model.items[i];
       if (it.type !== 'shape' || it.id === exceptId) continue;
-      if (p.x >= it.x && p.x <= it.x + it.w && p.y >= it.y && p.y <= it.y + it.h) return it;
+      if (D.contains(it, p)) return it;
     }
     return null;
   }
@@ -554,7 +575,8 @@
       const it = selected()[0];
       snapshot();
       if (handle === 'from' || handle === 'to') ed.drag = { kind: 'end', id: it.id, end: handle, moved: false };
-      else ed.drag = { kind: 'resize', id: it.id, handle, orig: { x: it.x, y: it.y, w: it.w, h: it.h }, start: p, moved: false };
+      else if (handle === 'rot') ed.drag = { kind: 'rotate', id: it.id, center: D.center(it), moved: false };
+      else ed.drag = { kind: 'resize', id: it.id, handle, orig: { x: it.x, y: it.y, w: it.w, h: it.h, rot: D.rotOf(it) }, start: p, moved: false };
       return;
     }
     const id = itemIdOf(e.target);
@@ -618,15 +640,31 @@
       render();
       return;
     }
+    if (d.kind === 'rotate') {
+      // つまみは図形の上にあるので、真上 = 0°。15° ごとにそろえる（Alt で自由に）
+      const it = find(d.id);
+      let deg = (Math.atan2(p.y - d.center.y, p.x - d.center.x) * 180) / Math.PI + 90;
+      deg = on ? Math.round(deg / 15) * 15 : Math.round(deg);
+      deg = ((deg % 360) + 360) % 360;
+      if (deg) it.rot = deg; else delete it.rot;
+      d.moved = true;
+      ed.dirty = true;
+      render();
+      return;
+    }
     if (d.kind === 'resize') {
       const it = find(d.id);
       const o = d.orig;
+      // 回した図形は、回す前の向き（図形の座標）で大きさを変え、反対側の辺・角が動かないように位置を戻す
+      const oc = { x: o.x + o.w / 2, y: o.y + o.h / 2 };
+      const q = o.rot ? D.rotate(p, oc, -o.rot) : p;
+      const sn = (v) => (o.rot ? Math.round(v) : snap(v, on));
       let x1 = o.x, y1 = o.y, x2 = o.x + o.w, y2 = o.y + o.h;
       const hd = d.handle;
-      if (hd.includes('w')) x1 = snap(p.x, on);
-      if (hd.includes('e')) x2 = snap(p.x, on);
-      if (hd.includes('n')) y1 = snap(p.y, on);
-      if (hd.includes('s')) y2 = snap(p.y, on);
+      if (hd.includes('w')) x1 = sn(q.x);
+      if (hd.includes('e')) x2 = sn(q.x);
+      if (hd.includes('n')) y1 = sn(q.y);
+      if (hd.includes('s')) y2 = sn(q.y);
       if (e.shiftKey && hd.length === 2) {
         // 縦横比を保つ
         const ratio = o.w / o.h;
@@ -634,8 +672,12 @@
         const hh = w / ratio;
         if (hd.includes('n')) y1 = y2 - hh; else y2 = y1 + hh;
       }
-      it.x = Math.min(x1, x2); it.y = Math.min(y1, y2);
-      it.w = Math.max(12, Math.abs(x2 - x1)); it.h = Math.max(12, Math.abs(y2 - y1));
+      const nw = Math.max(12, Math.abs(x2 - x1));
+      const nh = Math.max(12, Math.abs(y2 - y1));
+      const lc = { x: Math.min(x1, x2) + nw / 2, y: Math.min(y1, y2) + nh / 2 }; // 新しい中心（回す前の座標）
+      const c = o.rot ? D.rotate(lc, oc, o.rot) : lc; // 図の座標での新しい中心
+      it.x = c.x - nw / 2; it.y = c.y - nh / 2;
+      it.w = nw; it.h = nh;
       d.moved = true;
       ed.dirty = true;
       render();
@@ -660,7 +702,7 @@
       const inside = (q) => q.x >= b.x && q.x <= b.x + b.w && q.y >= b.y && q.y <= b.y + b.h;
       ed.sel = new Set(d.base);
       for (const it of ed.model.items) {
-        const pts = it.type === 'shape' ? [{ x: it.x, y: it.y }, { x: it.x + it.w, y: it.y + it.h }] : D.linePoints(it, idx);
+        const pts = it.type === 'shape' ? D.corners(it) : D.linePoints(it, idx);
         if (pts.every(inside)) ed.sel.add(it.id);
       }
       renderOverlay();
@@ -683,7 +725,7 @@
       } else if (!d.moved) ed.history.pop();
       ed.hover = null;
     }
-    if (d.kind === 'resize' && !d.moved) ed.history.pop();
+    if ((d.kind === 'resize' || d.kind === 'rotate') && !d.moved) ed.history.pop();
     render();
   }
 
@@ -746,6 +788,13 @@
       color: style.textColor,
       background: bg,
     });
+    // 回した図形では、入力欄も図形の中心を軸に同じだけ回す
+    const rot = it.type === 'shape' ? D.rotOf(it) : 0;
+    if (rot) {
+      const c = D.center(it);
+      ta.style.transformOrigin = (c.x - box.x) * z + 'px ' + (c.y - box.y) * z + 'px';
+      ta.style.transform = 'rotate(' + rot + 'deg)';
+    }
     ed.els.stage.append(ta);
     ed.editing = { id: it.id, ta, isNew, before: it.text || '' };
     ta.addEventListener('keydown', (e) => {
@@ -979,6 +1028,23 @@
         };
         p.append(section('位置と大きさ', h('div', { class: 'dg-nums' }, numIn('x'), numIn('y'), numIn('w'), numIn('h'))));
       }
+      // 回転（選んでいる図形それぞれを、自分の中心で回す）
+      const setRot = (fn) => change(() => {
+        for (const it of shapes) {
+          const r = ((Math.round(fn(D.rotOf(it))) % 360) + 360) % 360;
+          if (r) it.rot = r; else delete it.rot;
+        }
+      });
+      const rotInput = h('input', { type: 'number', value: Math.round(D.rotOf(shapes[0])), step: 15, min: 0, max: 359 });
+      rotInput.addEventListener('change', () => setRot(() => Number(rotInput.value) || 0));
+      p.append(section('回転',
+        h('div', { class: 'dg-nums' }, h('label', { class: 'dg-num' }, h('span', null, '角度'), rotInput)),
+        h('div', { class: 'dg-arrange' },
+          h('button', { type: 'button', class: 'btn small', title: '左へ 90° 回す', onclick: () => setRot((r) => r - 90) }, '↺ 90°'),
+          h('button', { type: 'button', class: 'btn small', title: '右へ 90° 回す', onclick: () => setRot((r) => r + 90) }, '↻ 90°'),
+          h('button', { type: 'button', class: 'btn small', title: '向きを反対にする', onclick: () => setRot((r) => r + 180) }, '180°'),
+          h('button', { type: 'button', class: 'btn small', onclick: () => setRot(() => 0) }, '元に戻す')),
+        h('p', { class: 'dg-hint' }, '図形の上の ○ をドラッグしても回せます（15° ごと。Alt を押しながらで自由に）。')));
     }
 
     if (lines.length) {

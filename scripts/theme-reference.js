@@ -212,6 +212,7 @@ function markdown() {
   p('| `.ks-slide` | `data-layout` | ' + schema.LAYOUTS.map(([id]) => code(id)).join(' ') + ' |');
   p('| `.ks-slide` | `data-align` / `data-valign` | `left` `center` / `top` `center` |');
   p('| `.ks-slide` | `data-col-style` / `data-col-align` / `data-col-valign` | カラムのスライドだけ。`none` `outline` `fill` `card` / `left` `center` / `top` `center` `bottom` |');
+  p('| `.ks-slide` | `data-col-dir` | カラムのスライドだけ。並べ方: `row`（横）`column`（縦）`grid`（2 列の格子） |');
   p('| `.ks-slide` | `data-transition` / `data-entrance` / `data-build` | アニメーション（上の表の値） |');
   p('| `.ks-cols` | `data-count` | 列の数 |');
   p();

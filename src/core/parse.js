@@ -22,7 +22,9 @@
   const RE_SEPARATOR = /^---\s*$/;
   const RE_NOTES = /^(\?\?\?|notes?:)\s*$/i;
   const RE_COLUMN = /^\|\|\|\s*$/;
-  const RE_COLS_OPEN = /^:::\s*(?:columns|cols|カラム)\s*$/i;
+  // ::: columns（横に並べる）/ ::: rows（縦に並べる）/ ::: grid（格子・2 列）
+  const RE_COLS_OPEN = /^:::\s*(columns|cols|カラム|rows|縦|grid|格子)\s*$/i;
+  const COL_DIR = { columns: 'row', cols: 'row', 'カラム': 'row', rows: 'column', '縦': 'column', grid: 'grid', '格子': 'grid' };
   const RE_COLS_CLOSE = /^:::\s*$/;
   const RE_ID = /^\s*<!--\s*id\s*:\s*(\S+?)\s*-->\s*$/;
   const RE_HEADING = /^ {0,3}(#{1,6})\s+(.+?)\s*#*\s*$/;
@@ -91,7 +93,8 @@
    * @param {string} text slides.md の全文
    * @returns {{meta: Object, slides: Array, lineCount: number}}
    *   slides[i] = { index, id, explicitId, title, pre: string, columns: string[], post: string, notes: string,
-   *                 fenced, startLine, endLine, contentStartLine }  （行番号は 0 始まり・全文基準）
+   *                 fenced, colDir?, startLine, endLine, contentStartLine }  （行番号は 0 始まり・全文基準）
+   *   colDir は囲みの書き方で決まるカラムの並べ方（::: columns → row / ::: rows → column / ::: grid → grid）。囲みが無ければ無し
    *   pre / post は「::: columns」の囲みの前後の本文（囲みが無ければ空で、本文はすべて columns に入る）
    */
   function parseDeck(text) {
@@ -127,11 +130,13 @@
             if (cur.contentStartLine < 0) cur.contentStartLine = i;
             continue;
           }
-          if (RE_COLS_OPEN.test(line) && cur.region === 'body') {
+          const om = RE_COLS_OPEN.exec(line);
+          if (om && cur.region === 'body') {
             // ここまでの本文は囲みの前（全幅）。||| が先にあっても 1 つにまとめる
             cur.pre = [].concat.apply([], cur.columns.map((c, k) => (k ? [''].concat(c) : c)));
             cur.columns = [[]];
             cur.region = 'cols';
+            cur.colDir = COL_DIR[om[1].toLowerCase()] || 'row';
             continue;
           }
           if (RE_COLS_CLOSE.test(line) && cur.region === 'cols') { cur.region = 'post'; continue; }

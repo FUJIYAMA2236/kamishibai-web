@@ -108,6 +108,7 @@ my-brand/            ← フォルダ名がテーマ ID（半角英小文字・�
 | キー | 内容 | 既定値 | 書ける値 | CSS での名前 |
 | --- | --- | --- | --- | --- |
 | `colStyle` | 囲み | `none` | `none` なし<br>`outline` 枠線<br>`fill` 塗り<br>`card` カード | .ks-deck の `data-col-style` |
+| `colDir` | 並べ方 | `row` | `row` 横に並べる<br>`column` 縦に並べる<br>`grid` 格子（2 列） | （CSS には出ない） |
 | `colAlign` | 文字の横位置 | `auto` | `auto` 自動<br>`left` 左<br>`center` 中央 | （CSS には出ない） |
 | `colValign` | 文字の縦位置 | `auto` | `auto` 自動<br>`top` 上詰め<br>`center` 中央<br>`bottom` 下詰め | （CSS には出ない） |
 | `boxRadius` | 箱の角丸 | `20` px | 0〜48 px（1 刻み） | `--ks-box-radius` |
@@ -232,6 +233,7 @@ theme.css は、ツールのスタイル（runtime.css）の後ろにそのま�
 | `.ks-slide` | `data-layout` | `title` `section` `content` `center` `columns` `image-right` `image-left` `image-full` `quote` |
 | `.ks-slide` | `data-align` / `data-valign` | `left` `center` / `top` `center` |
 | `.ks-slide` | `data-col-style` / `data-col-align` / `data-col-valign` | カラムのスライドだけ。`none` `outline` `fill` `card` / `left` `center` / `top` `center` `bottom` |
+| `.ks-slide` | `data-col-dir` | カラムのスライドだけ。並べ方: `row`（横）`column`（縦）`grid`（2 列の格子） |
 | `.ks-slide` | `data-transition` / `data-entrance` / `data-build` | アニメーション（上の表の値） |
 | `.ks-cols` | `data-count` | 列の数 |
 

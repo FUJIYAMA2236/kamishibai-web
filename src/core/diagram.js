@@ -133,8 +133,36 @@
   // ------------------------------------------------------------------
   const center = (it) => ({ x: it.x + it.w / 2, y: it.y + it.h / 2 });
 
-  /** 図形の中心から (tx, ty) へ向かう線が、図形の輪郭と交わる点 */
+  // ---- 回転（it.rot: 中心を軸に時計回りの角度。度） ----
+  const rotOf = (it) => { const r = Number(it && it.rot) || 0; return ((r % 360) + 360) % 360; };
+  /** 点 p を c を中心に deg 度（時計回り）回す */
+  function rotate(p, c, deg) {
+    if (!deg) return { x: p.x, y: p.y };
+    const a = (deg * Math.PI) / 180;
+    const dx = p.x - c.x;
+    const dy = p.y - c.y;
+    return { x: c.x + dx * Math.cos(a) - dy * Math.sin(a), y: c.y + dx * Math.sin(a) + dy * Math.cos(a) };
+  }
+  /** 図の座標 → 回す前の図形の座標（当たり判定・大きさの変更に使う） */
+  const toLocal = (it, p) => rotate(p, center(it), -rotOf(it));
+  const toWorld = (it, p) => rotate(p, center(it), rotOf(it));
+  /** 回したあとの 4 隅 */
+  const corners = (it) => [[0, 0], [1, 0], [1, 1], [0, 1]].map(([a, b]) => toWorld(it, { x: it.x + it.w * a, y: it.y + it.h * b }));
+  /** 点が図形の中にあるか（回転も考える。輪郭ではなく外枠の四角で判定） */
+  function contains(it, p) {
+    const q = toLocal(it, p);
+    return q.x >= it.x && q.x <= it.x + it.w && q.y >= it.y && q.y <= it.y + it.h;
+  }
+
+  /** 図形の中心から (tx, ty) へ向かう線が、図形の輪郭と交わる点（回した図形は、回す前の向きで求めてから戻す） */
   function boundaryPoint(it, tx, ty) {
+    if (rotOf(it)) {
+      const t = toLocal(it, { x: tx, y: ty });
+      return toWorld(it, boundaryPointFlat(it, t.x, t.y));
+    }
+    return boundaryPointFlat(it, tx, ty);
+  }
+  function boundaryPointFlat(it, tx, ty) {
     const c = center(it);
     let dx = tx - c.x;
     let dy = ty - c.y;
@@ -167,10 +195,12 @@
   /** 上下左右の辺の中点（直角の線をつなぐ口） */
   function sidePoint(it, side) {
     const c = center(it);
-    if (side === 'top') return { x: c.x, y: it.y };
-    if (side === 'bottom') return { x: c.x, y: it.y + it.h };
-    if (side === 'left') return { x: it.x, y: c.y };
-    return { x: it.x + it.w, y: c.y };
+    let p;
+    if (side === 'top') p = { x: c.x, y: it.y };
+    else if (side === 'bottom') p = { x: c.x, y: it.y + it.h };
+    else if (side === 'left') p = { x: it.x, y: c.y };
+    else p = { x: it.x + it.w, y: c.y };
+    return toWorld(it, p);
   }
 
   const byId = (model) => { const m = {}; for (const it of model.items) m[it.id] = it; return m; };
@@ -303,7 +333,7 @@
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
     const add = (x, y) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y); };
     for (const it of model.items) {
-      if (it.type === 'shape') { add(it.x, it.y); add(it.x + it.w, it.y + it.h); }
+      if (it.type === 'shape') for (const p of corners(it)) add(p.x, p.y);
       else if (it.type === 'line') for (const p of linePoints(it, index)) add(p.x, p.y);
     }
     if (x1 === Infinity) return { x: 0, y: 0, w: 400, h: 240 };
@@ -332,6 +362,8 @@
         const lines = wrapText(it.text, box.w, Number(st.fontSize) || 16, st.bold, opts.measure ? (t, s, b) => opts.measure(t, s, b, font) : null);
         out += textBlock(lines, box, st, font);
       }
+      const r = rotOf(it);
+      if (r) { const c = center(it); out = '<g transform="rotate(' + num(r) + ' ' + num(c.x) + ' ' + num(c.y) + ')">' + out + '</g>'; }
       return out;
     }
     if (it.type === 'line') {
@@ -427,6 +459,8 @@
       const text = typeof it.text === 'string' ? it.text : '';
       if (it.type === 'shape') {
         const o = { id: it.id, type: 'shape', shape: SHAPE_IDS.has(it.shape) ? it.shape : 'rect', x: n(it.x), y: n(it.y), w: Math.max(1, n(it.w)), h: Math.max(1, n(it.h)), text, style: style(it.style) };
+        const r = rotOf({ rot: n(it.rot) });
+        if (r) o.rot = Math.round(r * 100) / 100;
         if (o.shape === 'image') {
           o.src = typeof it.src === 'string' && /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml|avif);base64,[A-Za-z0-9+/=]+$/.test(it.src) ? it.src : '';
           if (Number.isFinite(Number(it.ratio))) o.ratio = Number(it.ratio);
@@ -463,6 +497,7 @@
 
   return {
     EXT, SHAPES, DEFAULT_SHAPE_STYLE, DEFAULT_LINE_STYLE, META_ID, shapeStyle, normalizeModel,
+    rotate, rotOf, toLocal, toWorld, corners, contains, center,
     newModel, polygon, shapeOutline, textBox, linePoints, boundaryPoint, sidePoint, midPoint, byId, bounds,
     wrapText, itemSvg, toSvg, fromSvg, isDiagramPath,
   };

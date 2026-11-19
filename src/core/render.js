@@ -320,6 +320,7 @@
   // ------------------------------------------------------------------
 
   const COL_STYLES = ['none', 'outline', 'fill', 'card'];
+  const COL_DIRS = ['row', 'column', 'grid'];
 
   // ---- 色の計算（カラムの塗り色と、その上の文字色を決める） ----
   const HEX = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i;
@@ -449,6 +450,8 @@
       attrs['data-col-align'] = pick(sd.colAlign, ['left', 'center'], pick(resolved.tokens.colAlign, ['left', 'center'], boxed ? 'center' : 'left'));
       attrs['data-col-valign'] = pick(sd.colValign, ['top', 'center', 'bottom'],
         pick(resolved.tokens.colValign, ['top', 'center', 'bottom'], boxed || valign === 'center' ? 'center' : 'top'));
+      // 並べ方: スライド個別（GUI）> 原稿の囲み（::: rows など）> デッキ全体（トークン）> 横
+      attrs['data-col-dir'] = pick(sd.colDir, COL_DIRS, pick(slide.colDir, COL_DIRS, pick(resolved.tokens.colDir, COL_DIRS, 'row')));
     }
 
     const style = [];
@@ -559,8 +562,9 @@
         const colStyle = pick(sd.colStyle, COL_STYLES, pick(resolved.tokens.colStyle, COL_STYLES, 'none'));
         const colAlign = pick(sd.colAlign, ['left', 'center'], pick(resolved.tokens.colAlign, ['left', 'center'], colStyle !== 'none' ? 'center' : 'left'));
         const style = colStyle !== 'none' ? ' style="' + esc(columnColorStyle(columns.length, resolved.tokens, sd)) + '"' : '';
+        const colDir = pick(sd.colDir, COL_DIRS, pick(slide.colDir, COL_DIRS, pick(resolved.tokens.colDir, COL_DIRS, 'row')));
         html += (head ? head.html : '') +
-          '<div class="ks-doc-cols" data-col-style="' + colStyle + '" data-col-align="' + colAlign + '"' + style + '>' +
+          '<div class="ks-doc-cols" data-col-style="' + colStyle + '" data-col-align="' + colAlign + '" data-col-dir="' + colDir + '"' + style + '>' +
           columns.map((c) => '<div class="ks-doc-col">' + join(c) + '</div>').join('') + '</div>';
       } else {
         html += columns.map(join).join('');

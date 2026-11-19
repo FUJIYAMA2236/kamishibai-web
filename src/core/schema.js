@@ -121,6 +121,12 @@
       key: 'colStyle', group: 'columns', label: '囲み', type: 'select', out: 'attr', default: 'none',
       options: [['none', 'なし'], ['outline', '枠線'], ['fill', '塗り'], ['card', 'カード']],
     },
+    // カラムの並べ方（row = 横に並べる / column = 縦に並べる / grid = 2 列の格子）。
+    // スライドごとの指定（このスライド）と、原稿の「::: rows」「::: grid」の囲みが優先。render.js が data-col-dir にする
+    {
+      key: 'colDir', group: 'columns', label: '並べ方', type: 'select', out: 'none', default: 'row',
+      options: [['row', '横に並べる'], ['column', '縦に並べる'], ['grid', '格子（2 列）']],
+    },
     // カラム内の文字の位置（auto = 箱のときは中央・左右は中央、箱なしは上・左）
     {
       key: 'colAlign', group: 'columns', label: '文字の横位置', type: 'select', out: 'none', default: 'auto',

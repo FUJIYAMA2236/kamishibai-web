@@ -519,7 +519,8 @@
     const jpeg = /^data:image\/jpe?g/.test(it.src);
     const k = Math.min(1, 2000 / Math.max(src.w, src.h));
     const png = await rasterize(it.src, src.w * k, src.h * k, crop, jpeg);
-    return { kind: 'image', x: X(box.x), y: Y(box.y), w: box.w * s, h: box.h * s, data: png.data, mime: png.mime, alt: it.text || '画像' };
+    // 収めた画像の中心は図形の中心と同じなので、図形と同じ角度で回せばよい
+    return { kind: 'image', x: X(box.x), y: Y(box.y), w: box.w * s, h: box.h * s, rot: D.rotOf(it), data: png.data, mime: png.mime, alt: it.text || '画像' };
   }
 
   async function diagramGroup(model, viewBox, r) {
@@ -547,7 +548,7 @@
         }
         children.push({
           kind: 'shape', geom: GEOM[it.shape] || 'rect', poly: D.polygon(it), shape: it.shape,
-          x: X(it.x), y: Y(it.y), w: it.w * s, h: it.h * s,
+          x: X(it.x), y: Y(it.y), w: it.w * s, h: it.h * s, rot: D.rotOf(it),
           fill: st.fill && st.fill !== 'none' && it.shape !== 'image' ? st.fill : null,
           line: st.stroke && st.stroke !== 'none' ? st.stroke : null,
           lineWidth: (Number(st.strokeWidth) || 0) * s, dash: st.dash,

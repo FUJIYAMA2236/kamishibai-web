@@ -1,7 +1,7 @@
 {
   "name": "kamishibai",
   "productName": "Kamishibai",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "description": "Markdown で書いて GUI で整える、HTML スライド作成ツール",
   "license": "MIT",
   "private": true,

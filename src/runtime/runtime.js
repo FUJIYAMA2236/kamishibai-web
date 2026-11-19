@@ -27,7 +27,8 @@
     const collect = (container) => {
       for (const el of container.children) {
         if (el.tagName === 'UL' || el.tagName === 'OL') flow.push.apply(flow, el.children);
-        else if (el.classList.contains('ks-cols')) for (const col of el.children) collect(col);
+        // カラムは 1 列（箱）ごとに 1 つ。段階表示ではクリックごとに 1 列ずつ出す（箱の中身だけが後から出ると、空の箱が先に見えてしまう）
+        else if (el.classList.contains('ks-cols')) flow.push.apply(flow, el.children);
         else if (el.classList.contains('ks-cols-pre') || el.classList.contains('ks-cols-post')) collect(el);
         else flow.push(el);
       }

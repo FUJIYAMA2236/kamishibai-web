@@ -247,6 +247,21 @@
             "カード"
           ]
         },
+        "colDir": {
+          "description": "並べ方",
+          "type": "string",
+          "enum": [
+            "row",
+            "column",
+            "grid"
+          ],
+          "default": "row",
+          "markdownEnumDescriptions": [
+            "横に並べる",
+            "縦に並べる",
+            "格子（2 列）"
+          ]
+        },
         "colAlign": {
           "description": "文字の横位置",
           "type": "string",

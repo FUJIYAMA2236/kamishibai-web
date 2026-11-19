@@ -152,7 +152,17 @@
       p.push('draw:textarea-vertical-align="' + ({ t: 'top', ctr: 'middle', b: 'bottom' }[o.anchor] || 'top') + '" draw:auto-grow-height="false" draw:auto-grow-width="false" fo:wrap-option="' + (o.single ? 'no-wrap' : 'wrap') + '" draw:shadow="hidden"');
       return style('graphic', '<style:graphic-properties ' + p.join(' ') + '/>', 'gr');
     }
-    const box = (it) => 'svg:x="' + mm(it.x) + '" svg:y="' + mm(it.y) + '" svg:width="' + mm(Math.max(0.5, it.w)) + '" svg:height="' + mm(Math.max(0.5, it.h)) + '"';
+    const box = (it) => {
+      const size = 'svg:width="' + mm(Math.max(0.5, it.w)) + '" svg:height="' + mm(Math.max(0.5, it.h)) + '"';
+      if (!it.rot) return 'svg:x="' + mm(it.x) + '" svg:y="' + mm(it.y) + '" ' + size;
+      // 回転（時計回りの度）: ODF は「左上を軸に反時計回りへ rotate → translate」なので、中心で回したときの左上の位置へ動かす
+      const a = (it.rot * Math.PI) / 180;
+      const cx = it.x + it.w / 2;
+      const cy = it.y + it.h / 2;
+      const tx = cx + (it.x - cx) * Math.cos(a) - (it.y - cy) * Math.sin(a);
+      const ty = cy + (it.x - cx) * Math.sin(a) + (it.y - cy) * Math.cos(a);
+      return size + ' draw:transform="rotate(' + (-a).toFixed(6) + ') translate(' + mm(tx) + ' ' + mm(ty) + ')"';
+    };
 
     function itemXml(it) {
       switch (it.kind) {

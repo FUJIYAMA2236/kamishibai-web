@@ -465,6 +465,50 @@ test('セキュリティ: 図形ファイルの中の値は、読み込むとき
   assert.ok(!/[<>"]/.test(m.font));
 });
 
+test('図形の回転: 描画・外枠・線のつなぎ先・当たり判定・保存して読み戻し', () => {
+  const D = require('../src/core/diagram');
+  const arrow = { id: 'a', type: 'shape', shape: 'arrow', x: 0, y: 0, w: 100, h: 40, rot: 90, text: '', style: {} };
+  const box = { id: 'b', type: 'shape', shape: 'rect', x: 300, y: 0, w: 100, h: 40, text: '', style: {} };
+  const svg = D.itemSvg(arrow, {}, {});
+  assert.ok(svg.startsWith('<g transform="rotate(90 50 20)">'), svg.slice(0, 60));
+  // 90° 回すと、外枠は縦長（中心 50,20 のまわりに 40×100）
+  const m = D.newModel('');
+  m.items.push(arrow);
+  const b = D.bounds(m);
+  assert.deepEqual([Math.round(b.x), Math.round(b.y), Math.round(b.w), Math.round(b.h)], [30, -30, 40, 100]);
+  // 当たり判定: 回す前なら外（x=90,y=20）でも、回したあとは中に入る点（50,60）
+  assert.ok(D.contains(arrow, { x: 50, y: 60 }));
+  assert.ok(!D.contains(arrow, { x: 90, y: 20 }));
+  // 上の辺のつなぎ口は、90° 回すと右側に来る
+  const top = D.sidePoint(arrow, 'top');
+  assert.deepEqual([Math.round(top.x), Math.round(top.y)], [70, 20]);
+  // 右の図形へ引いた直線は、回した矢印の輪郭から出る。矢印の軸の太さは高さの 44%（上下 28% ずつ空く）なので、
+  // 90° 回すと中心から右へ 40 × 0.22 = 8.8 の所
+  const line = { id: 'l', type: 'line', from: { id: 'a' }, to: { id: 'b' }, route: 'straight', text: '', style: {} };
+  const pts = D.linePoints(line, D.byId({ items: [arrow, box] }));
+  assert.ok(Math.abs(pts[0].x - 58.8) < 0.5, String(pts[0].x));
+  // 保存して読み戻しても角度が残る
+  m.items.push(box, line);
+  assert.equal(D.fromSvg(D.toSvg(m)).items[0].rot, 90);
+});
+
+test('カラムの並べ方: ::: rows / ::: grid と、スライド個別・デッキ全体の設定', () => {
+  const s = parse.parseDeck('## A\n\n::: rows\nx\n|||\ny\n:::\n\n---\n\n## B\n\n::: grid\na\n|||\nb\n|||\nc\n:::\n\n---\n\n## C\n\nx\n\n|||\n\ny').slides;
+  assert.deepEqual(s.map((x) => x.colDir), ['column', 'grid', undefined]);
+  const out = renderOne('## A\n\n::: rows\nx\n|||\ny\n:::\n\n---\n\n## C\n\nx\n\n|||\n\ny', { tokens: { colDir: 'grid' }, slides: { c: { colDir: 'row' } } });
+  assert.match(out.slides[0].html, /data-col-dir="column"/); // 原稿の囲みはデッキ全体より強い
+  assert.match(out.slides[1].html, /data-col-dir="row"/); // スライド個別の設定がいちばん強い
+  assert.match(renderOne('## C\n\nx\n\n|||\n\ny', { tokens: { colDir: 'grid' } }).slides[0].html, /data-col-dir="grid"/);
+});
+
+test('pptx / odp: 回した図形は角度つきで書き出す', () => {
+  const scene = { w: 1280, h: 720, bg: { color: '#ffffff' }, items: [{ kind: 'shape', geom: 'rightArrow', x: 100, y: 100, w: 200, h: 80, rot: 90, fill: '#ff0000' }] };
+  const pptx = require('../src/core/pptx').buildPptx([scene], { title: 'T' });
+  assert.ok(pptx.find((e) => e.name === 'ppt/slides/slide1.xml').data.includes('<a:xfrm rot="5400000">'));
+  const odp = require('../src/core/odp').buildOdp([scene], { title: 'T' });
+  assert.match(odp.find((e) => e.name === 'content.xml').data, /draw:transform="rotate\(-1\.570796\) translate\(/);
+});
+
 test('セキュリティ: プロジェクトの外を指すパスは inside が null を返す（Windows の書き方も）', () => {
   const P = require('../src/app/pathx');
   for (const rel of ['..\\x', '../x', 'a/../../x', 'a\\..\\..\\x', 'C:\\Windows\\win.ini', 'C:/x', 'D:\\x', '\\\\server\\share\\x', '/etc/passwd']) {

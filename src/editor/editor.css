@@ -1114,6 +1114,8 @@ body.is-dragging-canvas, body.is-dragging-canvas * { user-select: none; }
 .dg-sel-line { fill: none; stroke: color-mix(in srgb, var(--accent) 45%, transparent); pointer-events: none; }
 .dg-handle { fill: #fff; stroke: var(--accent); }
 .dg-handle.is-end { cursor: grab; }
+.dg-handle.is-rot { cursor: alias; fill: var(--accent); stroke: #fff; }
+.dg-rot-line { stroke: var(--accent); pointer-events: none; }
 .dg-port { fill: var(--accent); stroke: #fff; cursor: crosshair; opacity: 0.85; }
 .dg-port:hover { opacity: 1; }
 .dg-target { fill: color-mix(in srgb, var(--accent) 10%, transparent); stroke: var(--accent); pointer-events: none; }
@@ -1155,6 +1157,7 @@ body.is-dragging-canvas, body.is-dragging-canvas * { user-select: none; }
 .dg-sw.is-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
 .dg-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .dg-num { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.dg-num > span { flex: none; white-space: nowrap; }
 .dg-num input { width: 100%; height: 26px; padding: 0 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--panel-2); color: var(--text); }
 .dg-arrange { display: flex; flex-wrap: wrap; gap: 4px; padding-top: 6px; }
 .dg-keys { margin: 4px 0; padding-left: 18px; color: var(--muted); font-size: 11.5px; line-height: 1.8; }

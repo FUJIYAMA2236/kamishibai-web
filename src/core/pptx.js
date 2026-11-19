@@ -95,7 +95,8 @@
         return '<p:txBody><a:bodyPr wrap="' + (o.single ? 'none' : 'square') + '" lIns="' + E(ins[0]) + '" tIns="' + E(ins[1]) + '" rIns="' + E(ins[2]) + '" bIns="' + E(ins[3]) + '" anchor="' + (o.anchor || 't') + '" rtlCol="0"><a:noAutofit/></a:bodyPr><a:lstStyle/>' +
           (paras && paras.length ? paras.map(paraXml).join('') : '<a:p><a:endParaRPr lang="ja-JP"/></a:p>') + '</p:txBody>';
       }
-      const xfrm = (it) => '<a:xfrm><a:off x="' + E(it.x) + '" y="' + E(it.y) + '"/><a:ext cx="' + Math.max(1, E(it.w)) + '" cy="' + Math.max(1, E(it.h)) + '"/></a:xfrm>';
+      // rot: 時計回りの角度（度）。PowerPoint は枠の中心を軸に回す（図形エディタの回転と同じ）。単位は 1/60000 度
+      const xfrm = (it) => '<a:xfrm' + (it.rot ? ' rot="' + Math.round((((it.rot % 360) + 360) % 360) * 60000) + '"' : '') + '><a:off x="' + E(it.x) + '" y="' + E(it.y) + '"/><a:ext cx="' + Math.max(1, E(it.w)) + '" cy="' + Math.max(1, E(it.h)) + '"/></a:xfrm>';
       function geom(it) {
         if (it.geom === 'roundRect') {
           const adj = Math.min(50000, Math.round(((it.radius || 0) / Math.max(1, Math.min(it.w, it.h))) * 100000));

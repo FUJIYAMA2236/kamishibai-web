@@ -871,6 +871,7 @@
         html: '<svg viewBox="0 0 40 24">' + COL_ICONS[s[0]] + '</svg><span>' + s[1] + '</span>',
         onclick: () => { setSlideValue(['colStyle'], s[0] || undefined); renderPanel(); },
       }))),
+      slideField('並べ方', ['colDir'], segControl([['', '自動'], ['row', '横'], ['column', '縦'], ['grid', '格子']], sd.colDir || '', (v) => { setSlideValue(['colDir'], v || undefined); renderPanel(); })),
       slideField('文字の横位置', ['colAlign'], segControl([['', '全体設定'], ['left', '左'], ['center', '中央']], sd.colAlign || '', (v) => { setSlideValue(['colAlign'], v || undefined); renderPanel(); })),
       slideField('文字の縦位置', ['colValign'], segControl([['', '全体設定'], ['top', '上詰め'], ['center', '中央'], ['bottom', '下詰め']], sd.colValign || '', (v) => { setSlideValue(['colValign'], v || undefined); renderPanel(); })),
     ];
