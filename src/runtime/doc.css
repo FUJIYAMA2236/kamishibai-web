@@ -183,6 +183,7 @@
 .ks-doc-cols[data-col-dir='grid'] { grid-auto-flow: row; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .ks-doc-cols[data-col-dir='grid'] .ks-doc-col:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .ks-doc-col { min-width: 0; }
+.ks-doc-col pre.ks-code { white-space: pre-wrap; overflow-wrap: anywhere; } /* 狭いカラムでは折り返す（PDF ではスクロールできないため） */
 .ks-doc-col > :last-child { margin-bottom: 0; }
 .ks-doc-col:nth-child(4n + 1) { --ks-col-c: var(--ks-col-1, var(--ks-accent)); --ks-on-c: var(--ks-on-col-1, #fff); }
 .ks-doc-col:nth-child(4n + 2) { --ks-col-c: var(--ks-col-2, var(--ks-accent2)); --ks-on-c: var(--ks-on-col-2, #fff); }

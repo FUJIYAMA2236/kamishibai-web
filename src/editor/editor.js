@@ -358,13 +358,29 @@
     $('#notesBody').innerHTML = s.notesHtml || 'このスライドにノートはありません（??? の行より後ろに書くと、発表者ビューにだけ表示されます）';
   }
 
+  /**
+   * いまのサムネイルが見えるように、スライド一覧（#film）の中だけを横にスクロールする。
+   * scrollIntoView は外側の枠（ページ全体など）までスクロールしてしまい、画面がずれて戻らなくなることがあったので使わない。
+   */
+  function revealThumb(el) {
+    const film = $('#film');
+    if (!film || !film.contains(el)) return;
+    const f = film.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const pad = 12;
+    let dx = 0;
+    if (r.left < f.left + pad) dx = r.left - f.left - pad;
+    else if (r.right > f.right - pad) dx = r.right - f.right + pad;
+    if (dx) film.scrollBy({ left: dx, behavior: 'smooth' });
+  }
+
   function setCurrent(index, opts) {
     opts = opts || {};
     index = clamp(index, 0, state.out.slides.length - 1);
     const changed = index !== state.current;
     state.current = index;
     thumbs.forEach((t, i) => t.wrap.classList.toggle('is-current', i === index));
-    if (thumbs[index]) thumbs[index].wrap.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'smooth' });
+    if (thumbs[index]) revealThumb(thumbs[index].wrap);
     showMain(changed || opts.replay);
     updateBar();
     if (state.tab === 'slide') renderPanel();
@@ -1476,6 +1492,21 @@
   }
 
   /** スライドの一覧（下の横並び）は、マウスホイールの縦の回転で横にスクロールする */
+  /**
+   * ページ全体（ウィンドウ）は決してスクロールさせない。原稿エディタの「その行へ移動」や、
+   * 画面の中の要素を見えるようにする処理が外側の枠まで動かし、上のバーやプレビューが画面の外に出たまま戻らなくなったことがあるため。
+   */
+  function guardPageScroll() {
+    const reset = () => {
+      if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
+      const se = document.scrollingElement;
+      if (se && (se.scrollTop || se.scrollLeft)) { se.scrollTop = 0; se.scrollLeft = 0; }
+      if (document.body.scrollTop || document.body.scrollLeft) { document.body.scrollTop = 0; document.body.scrollLeft = 0; }
+    };
+    window.addEventListener('scroll', reset);
+    document.body.addEventListener('scroll', reset);
+  }
+
   function initFilmWheel() {
     const film = $('#film');
     film.addEventListener('wheel', (e) => {
@@ -1540,6 +1571,7 @@
       initSplitter();
       guardWindowDrop();
       initFilmWheel();
+      guardPageScroll();
       setLayout(localStorage.getItem('ks.sideLeft') === '1');
       setSide(state.side);
       setMode(state.mode);

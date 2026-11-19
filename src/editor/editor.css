@@ -158,7 +158,10 @@ body.is-start #status { visibility: hidden; }
   grid-template-columns: var(--side-w, 520px) 5px minmax(0, 1fr);
   grid-template-areas: 'side split preview';
 }
-.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+/* 枠からはみ出した中身でページ全体がスクロールできる状態にならないよう、外側の枠は切り取る（overflow: clip はスクロールもしない）。
+   中でスクロールするのは原稿エディタ・デザインパネル・スライド一覧など、それぞれの要素だけ */
+.panes { overflow: clip; }
+.pane { min-width: 0; min-height: 0; display: flex; flex-direction: column; overflow: clip; }
 .pane-preview { grid-area: preview; }
 .splitter { grid-area: split; cursor: col-resize; background: var(--line); transition: background 0.15s; }
 .splitter:hover, .splitter.is-dragging { background: var(--accent); }
@@ -261,7 +264,7 @@ body.is-start #status { visibility: hidden; }
   .toolbar [data-insert] span { display: none; }
   .toolbar [data-insert] { padding: 0 7px; }
 }
-.editor-host { position: relative; flex: 1; min-height: 0; }
+.editor-host { position: relative; flex: 1; min-height: 0; overflow: clip; display: flex; flex-direction: column; }
 
 /* ---------- プレビュー ---------- */
 .pane-preview { background: var(--bg); }
@@ -731,9 +734,13 @@ body.is-dragging-canvas, body.is-dragging-canvas * { user-select: none; }
 }
 
 /* ---------- 原稿エディタ（editor-live.js / CodeMirror 6） ---------- */
-.editor-host .cm-editor { height: 100%; background: var(--panel); color: var(--text); font-size: var(--editor-fs, 15px); }
+/* 原稿エディタの高さは、枠（.editor-host）にぴったり合わせて固定する（height: 100% だと条件によって原稿の長さまで伸び、
+   中でスクロールできなくなって、ページ全体がずれる原因になった） */
+.editor-host .cm-editor { flex: 1 1 0; min-height: 0; background: var(--panel); color: var(--text); font-size: var(--editor-fs, 15px); }
 .editor-host .cm-editor.cm-focused { outline: none; }
-.editor-host .cm-scroller { font-family: var(--font); line-height: 1.75; overflow: auto; }
+/* 中のスクロールの箱も枠に収める（WebView2 では原稿の長さまで伸びて中でスクロールせず、
+   スライドへの移動で外側＝ページ全体がずれていた。0.4.3 で修正） */
+.editor-host .cm-scroller { flex: 1 1 0; min-height: 0; font-family: var(--font); line-height: 1.75; overflow: auto; }
 .editor-host .cm-content { max-width: 760px; margin: 0 auto; padding: 22px 26px 45vh; caret-color: var(--accent); }
 .editor-host .cm-line { padding: 0 2px; }
 .editor-host .cm-cursor { border-left: 2px solid var(--accent); }
@@ -1115,6 +1122,7 @@ body.is-dragging-canvas, body.is-dragging-canvas * { user-select: none; }
 .dg-handle { fill: #fff; stroke: var(--accent); }
 .dg-handle.is-end { cursor: grab; }
 .dg-handle.is-rot { cursor: alias; fill: var(--accent); stroke: #fff; }
+.dg-handle.is-tail { cursor: crosshair; fill: #f5b82e; stroke: #fff; }
 .dg-rot-line { stroke: var(--accent); pointer-events: none; }
 .dg-port { fill: var(--accent); stroke: #fff; cursor: crosshair; opacity: 0.85; }
 .dg-port:hover { opacity: 1; }

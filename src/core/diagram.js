@@ -10,7 +10,9 @@
  * モデル:
  *   { version: 1, font, items: [ 図形 | 線 ] }
  *   図形 { id, type: 'shape', shape, x, y, w, h, text, style: { fill, stroke, strokeWidth, dash, textColor, fontSize, bold, align, valign } }
- *        shape: rect | round | ellipse | diamond | parallelogram | hexagon | chevron | pentagon | triangle | cylinder | document | arrow | text | image
+ *        shape: rect | round | ellipse | diamond | parallelogram | hexagon | chevron | pentagon | triangle | cylinder | document | arrow | callout | polygon | text | image
+ *        callout（フキダシ）の tail: しっぽの先の位置 [x, y]（枠の左上 0・右下 1 の割合。枠の外に出してよい）
+ *        polygon（正多角形）の sides: 角の数（3〜12）
  *        image のときは src（data: URI）と ratio（元の横 / 縦）、style.fit: contain | cover を持つ。
  *        SVG を <img> で表示すると外のファイルは読めないので、画像は SVG の中に埋め込む。
  *        保存時、metadata の JSON には src を入れず（'#ks-img-<id>'）、本体の <image id="ks-img-<id>"> から読み戻す（同じデータを 2 回持たない）
@@ -49,6 +51,8 @@
     ['triangle', '三角'],
     ['cylinder', '円柱（データ）'],
     ['document', '書類'],
+    ['callout', 'フキダシ'],
+    ['polygon', '多角形'],
     ['text', 'テキスト'],
   ];
 
@@ -69,6 +73,16 @@
   function polygon(it) {
     const { x, y, w, h } = it;
     switch (it.shape) {
+      case 'callout': return calloutPoints(it);
+      case 'polygon': {
+        const n = sidesOf(it);
+        const out = [];
+        for (let i = 0; i < n; i++) {
+          const a = -Math.PI / 2 + (i * 2 * Math.PI) / n;
+          out.push([x + w / 2 + (w / 2) * Math.cos(a), y + h / 2 + (h / 2) * Math.sin(a)]);
+        }
+        return out;
+      }
       case 'diamond': return [[x + w / 2, y], [x + w, y + h / 2], [x + w / 2, y + h], [x, y + h / 2]];
       case 'parallelogram': { const s = Math.min(w * 0.22, h * 0.6); return [[x + s, y], [x + w, y], [x + w - s, y + h], [x, y + h]]; }
       case 'hexagon': { const s = Math.min(w * 0.22, h * 0.5); return [[x + s, y], [x + w - s, y], [x + w, y + h / 2], [x + w - s, y + h], [x + s, y + h], [x, y + h / 2]]; }
@@ -82,6 +96,47 @@
       }
       default: return null;
     }
+  }
+
+  // ---- フキダシ・多角形 ----
+  const DEFAULT_TAIL = [0.22, 1.45];
+  const DEFAULT_SIDES = 5;
+  const sidesOf = (it) => { const n = Math.round(Number(it.sides)); return n >= 3 && n <= 12 ? n : DEFAULT_SIDES; };
+  const tailOf = (it) => {
+    const t = Array.isArray(it.tail) ? it.tail.map(Number) : null;
+    return t && t.length === 2 && t.every(Number.isFinite) ? [Math.max(-3, Math.min(4, t[0])), Math.max(-3, Math.min(4, t[1]))] : DEFAULT_TAIL.slice();
+  };
+  /** しっぽの先（図の座標。回す前） */
+  const tailPoint = (it) => { const t = tailOf(it); return { x: it.x + it.w * t[0], y: it.y + it.h * t[1] }; };
+  /**
+   * フキダシの輪郭: 四角の、しっぽの先に近い辺に付け根を開けて、先へ向かう三角を足す。
+   * 先が枠の中にあるときは、しっぽの無い四角
+   */
+  function calloutPoints(it) {
+    const { x, y, w, h } = it;
+    const [tx, ty] = tailOf(it);
+    const P = (a, b) => [x + w * a, y + h * b];
+    if (tx >= 0 && tx <= 1 && ty >= 0 && ty <= 1) return [P(0, 0), P(1, 0), P(1, 1), P(0, 1)];
+    // どの辺から出すか: 中心から先への向き（枠を正方形とみなした向き）で決める
+    const dx = tx - 0.5;
+    const dy = ty - 0.5;
+    const tip = P(tx, ty);
+    const bw = 0.16; // 付け根の幅（辺の長さに対する割合）
+    const lo = bw / 2 + 0.04;
+    const hi = 1 - lo;
+    const mid = (v) => Math.max(lo, Math.min(hi, 0.5 + v * 0.35));
+    if (Math.abs(dy) >= Math.abs(dx)) {
+      const c = mid(dx / Math.abs(dy));
+      const a = c - bw / 2;
+      const b = c + bw / 2;
+      if (dy > 0) return [P(0, 0), P(1, 0), P(1, 1), P(b, 1), tip, P(a, 1), P(0, 1)];
+      return [P(0, 0), P(a, 0), tip, P(b, 0), P(1, 0), P(1, 1), P(0, 1)];
+    }
+    const c = mid(dy / Math.abs(dx));
+    const a = c - bw / 2;
+    const b = c + bw / 2;
+    if (dx > 0) return [P(0, 0), P(1, 0), P(1, a), tip, P(1, b), P(1, 1), P(0, 1)];
+    return [P(0, 0), P(1, 0), P(1, 1), P(0, 1), P(0, b), tip, P(0, a)];
   }
 
   /** 図形の輪郭の SVG 要素（属性 attrs を付ける） */
@@ -117,7 +172,7 @@
   /** 文字を置ける内側の範囲（図形によって狭める） */
   function textBox(it) {
     const { x, y, w, h } = it;
-    const inset = { diamond: [0.22, 0.2], parallelogram: [0.2, 0.08], hexagon: [0.2, 0.08], chevron: [0.25, 0.08], pentagon: [0.06, 0.08], triangle: [0.24, 0.38], ellipse: [0.14, 0.12], cylinder: [0.06, 0.24], document: [0.06, 0.06], arrow: [0.06, 0.28] }[it.shape] || [0.05, 0.06];
+    const inset = { diamond: [0.22, 0.2], parallelogram: [0.2, 0.08], hexagon: [0.2, 0.08], chevron: [0.25, 0.08], pentagon: [0.06, 0.08], triangle: [0.24, 0.38], ellipse: [0.14, 0.12], cylinder: [0.06, 0.24], document: [0.06, 0.06], arrow: [0.06, 0.28], polygon: [0.2, 0.16], callout: [0.05, 0.08] }[it.shape] || [0.05, 0.06];
     const ix = Math.max(6, w * inset[0]);
     let top = Math.max(4, h * inset[1]);
     let bottom = top;
@@ -333,7 +388,10 @@
     let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
     const add = (x, y) => { x1 = Math.min(x1, x); y1 = Math.min(y1, y); x2 = Math.max(x2, x); y2 = Math.max(y2, y); };
     for (const it of model.items) {
-      if (it.type === 'shape') for (const p of corners(it)) add(p.x, p.y);
+      if (it.type === 'shape') {
+        for (const p of corners(it)) add(p.x, p.y);
+        if (it.shape === 'callout') { const p = toWorld(it, tailPoint(it)); add(p.x, p.y); } // しっぽの先も
+      }
       else if (it.type === 'line') for (const p of linePoints(it, index)) add(p.x, p.y);
     }
     if (x1 === Infinity) return { x: 0, y: 0, w: 400, h: 240 };
@@ -461,6 +519,8 @@
         const o = { id: it.id, type: 'shape', shape: SHAPE_IDS.has(it.shape) ? it.shape : 'rect', x: n(it.x), y: n(it.y), w: Math.max(1, n(it.w)), h: Math.max(1, n(it.h)), text, style: style(it.style) };
         const r = rotOf({ rot: n(it.rot) });
         if (r) o.rot = Math.round(r * 100) / 100;
+        if (o.shape === 'callout' && Array.isArray(it.tail)) { const t = tailOf(it); o.tail = [Math.round(t[0] * 1000) / 1000, Math.round(t[1] * 1000) / 1000]; }
+        if (o.shape === 'polygon' && it.sides != null) o.sides = sidesOf(it);
         if (o.shape === 'image') {
           o.src = typeof it.src === 'string' && /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml|avif);base64,[A-Za-z0-9+/=]+$/.test(it.src) ? it.src : '';
           if (Number.isFinite(Number(it.ratio))) o.ratio = Number(it.ratio);
@@ -496,7 +556,7 @@
   }
 
   return {
-    EXT, SHAPES, DEFAULT_SHAPE_STYLE, DEFAULT_LINE_STYLE, META_ID, shapeStyle, normalizeModel,
+    EXT, SHAPES, DEFAULT_TAIL, DEFAULT_SIDES, sidesOf, tailOf, tailPoint, DEFAULT_SHAPE_STYLE, DEFAULT_LINE_STYLE, META_ID, shapeStyle, normalizeModel,
     rotate, rotOf, toLocal, toWorld, corners, contains, center,
     newModel, polygon, shapeOutline, textBox, linePoints, boundaryPoint, sidePoint, midPoint, byId, bounds,
     wrapText, itemSvg, toSvg, fromSvg, isDiagramPath,

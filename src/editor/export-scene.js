@@ -498,7 +498,7 @@
   }
 
   // 図形（.diagram.svg）→ PowerPoint の図形のグループ
-  const GEOM = { rect: 'rect', round: 'roundRect', ellipse: 'ellipse', diamond: 'diamond', parallelogram: 'parallelogram', hexagon: 'hexagon', chevron: 'chevron', pentagon: 'homePlate', arrow: 'rightArrow', triangle: 'triangle', cylinder: 'can', document: 'flowChartDocument', text: 'rect' };
+  const GEOM = { rect: 'rect', round: 'roundRect', ellipse: 'ellipse', diamond: 'diamond', parallelogram: 'parallelogram', hexagon: 'hexagon', chevron: 'chevron', pentagon: 'homePlate', arrow: 'rightArrow', triangle: 'triangle', cylinder: 'can', document: 'flowChartDocument', callout: 'wedgeRectCallout', polygon: 'custom', text: 'rect' };
   /** 図形の中の画像 → 表示されている部分だけの画像（収め方: 全体を表示 / 枠いっぱい） */
   async function diagramImage(it, st, X, Y, s) {
     const img = new Image();
@@ -537,6 +537,19 @@
       align: st.align === 'left' ? 'l' : st.align === 'right' ? 'r' : 'ctr', level: 0, bullet: null, lineSpacing: 1.3, spaceBefore: 0,
       runs: line ? [{ text: line, size: (Number(st.fontSize) || 16) * s, color: st.textColor || '#000000', bold: st.bold || undefined, font: font.latin, ea: font.ja }] : [],
     }));
+    // 輪郭の点の範囲の枠（回した図形は、図形の中心で回したときと同じ位置になるよう、枠の中心をずらす）
+    function polyBox(it, X, Y, s) {
+      const pts = D.polygon(it);
+      if (!pts) return null;
+      const x1 = Math.min(...pts.map((p) => p[0]));
+      const y1 = Math.min(...pts.map((p) => p[1]));
+      const x2 = Math.max(...pts.map((p) => p[0]));
+      const y2 = Math.max(...pts.map((p) => p[1]));
+      let cx = (x1 + x2) / 2;
+      let cy = (y1 + y2) / 2;
+      if (D.rotOf(it)) { const q = D.rotate({ x: cx, y: cy }, D.center(it), D.rotOf(it)); cx = q.x; cy = q.y; }
+      return { x: X(cx - (x2 - x1) / 2), y: Y(cy - (y2 - y1) / 2), w: (x2 - x1) * s, h: (y2 - y1) * s };
+    }
     for (const it of model.items) {
       if (it.type === 'shape') {
         const st = D.shapeStyle(it);
@@ -549,6 +562,11 @@
         children.push({
           kind: 'shape', geom: GEOM[it.shape] || 'rect', poly: D.polygon(it), shape: it.shape,
           x: X(it.x), y: Y(it.y), w: it.w * s, h: it.h * s, rot: D.rotOf(it),
+          // 輪郭の点が枠からはみ出す・届かない図形（フキダシのしっぽ・正多角形）の、点の範囲の枠（ODP 用）
+          polyBox: polyBox(it, X, Y, s),
+          polyX: it.x, polyY: it.y, polyW: it.w, polyH: it.h, // poly の座標系での枠（PowerPoint の多角形用）
+          // PowerPoint の図形の調整値（フキダシ: しっぽの先の、枠の中心からの位置。1/100000）
+          adj: it.shape === 'callout' ? D.tailOf(it).map((v) => Math.round((v - 0.5) * 100000)) : null,
           fill: st.fill && st.fill !== 'none' && it.shape !== 'image' ? st.fill : null,
           line: st.stroke && st.stroke !== 'none' ? st.stroke : null,
           lineWidth: (Number(st.strokeWidth) || 0) * s, dash: st.dash,

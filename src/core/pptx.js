@@ -102,6 +102,27 @@
           const adj = Math.min(50000, Math.round(((it.radius || 0) / Math.max(1, Math.min(it.w, it.h))) * 100000));
           return '<a:prstGeom prst="roundRect"><a:avLst><a:gd name="adj" fmla="val ' + adj + '"/></a:avLst></a:prstGeom>';
         }
+        if (it.geom === 'custom' && it.poly) {
+          // 図形エディタの多角形: 点を枠の左上 0 の座標に直して、そのまま輪郭にする
+          const pts = it.poly;
+          const ox = Math.min(...pts.map((p) => p[0]));
+          const oy = Math.min(...pts.map((p) => p[1]));
+          const pw = Math.max(...pts.map((p) => p[0])) - ox || 1;
+          const ph = Math.max(...pts.map((p) => p[1])) - oy || 1;
+          // 点の範囲 → 枠（ext）の範囲。正多角形の点は枠いっぱいとは限らないので、枠の大きさ（図の単位）で割る
+          const bw = it.polyW || pw;
+          const bh = it.polyH || ph;
+          const bx = it.polyX != null ? it.polyX : ox;
+          const by = it.polyY != null ? it.polyY : oy;
+          const ew = Math.max(1, E(it.w));
+          const eh = Math.max(1, E(it.h));
+          const pt = (p) => '<a:pt x="' + Math.round(((p[0] - bx) / bw) * ew) + '" y="' + Math.round(((p[1] - by) / bh) * eh) + '"/>';
+          return '<a:custGeom><a:avLst/><a:gdLst/><a:ahLst/><a:cxnLst/><a:rect l="0" t="0" r="r" b="b"/><a:pathLst><a:path w="' + ew + '" h="' + eh + '">' +
+            '<a:moveTo>' + pt(pts[0]) + '</a:moveTo>' + pts.slice(1).map((p) => '<a:lnTo>' + pt(p) + '</a:lnTo>').join('') + '<a:close/></a:path></a:pathLst></a:custGeom>';
+        }
+        if (it.adj && it.adj.length) {
+          return '<a:prstGeom prst="' + (it.geom || 'rect') + '"><a:avLst>' + it.adj.map((v, i) => '<a:gd name="adj' + (i + 1) + '" fmla="val ' + Math.round(v) + '"/>').join('') + '</a:avLst></a:prstGeom>';
+        }
         return '<a:prstGeom prst="' + (it.geom || 'rect') + '"><a:avLst/></a:prstGeom>';
       }
 

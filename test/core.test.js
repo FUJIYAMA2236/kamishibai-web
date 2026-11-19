@@ -509,6 +509,34 @@ test('pptx / odp: 回した図形は角度つきで書き出す', () => {
   assert.match(odp.find((e) => e.name === 'content.xml').data, /draw:transform="rotate\(-1\.570796\) translate\(/);
 });
 
+test('図形: フキダシ（しっぽ）と正多角形（角の数）', () => {
+  const D = require('../src/core/diagram');
+  const call = { id: 'c', type: 'shape', shape: 'callout', x: 0, y: 0, w: 100, h: 50, tail: [0.2, 1.6], text: '', style: {} };
+  const pts = D.polygon(call);
+  assert.equal(pts.length, 7);
+  assert.ok(pts.some((p) => p[0] === 20 && p[1] === 80)); // しっぽの先
+  const b = D.bounds({ items: [call] });
+  assert.equal(b.h, 80); // 外枠にしっぽの先も入る
+  assert.equal(D.polygon(Object.assign({}, call, { tail: [0.5, 0.5] })).length, 4); // 先が枠の中ならしっぽ無し
+  assert.equal(D.polygon(Object.assign({}, call, { tail: [1.5, 0.4] }))[3][0], 150); // 右へ
+  const poly = { id: 'p', type: 'shape', shape: 'polygon', x: 0, y: 0, w: 100, h: 100, sides: 6, text: '', style: {} };
+  assert.equal(D.polygon(poly).length, 6);
+  assert.equal(D.polygon(Object.assign({}, poly, { sides: 99 })).length, D.DEFAULT_SIDES);
+  // 保存して読み戻す（値はそろえる）
+  const m = D.fromSvg(D.toSvg({ version: 1, font: '', items: [call, poly, { id: 'q', type: 'shape', shape: 'polygon', x: 0, y: 0, w: 9, h: 9, sides: '7"><x', tail: 'x' }] }));
+  assert.deepEqual(m.items[0].tail, [0.2, 1.6]);
+  assert.equal(m.items[1].sides, 6);
+  assert.equal(m.items[2].sides, D.DEFAULT_SIDES);
+  // 書き出し: pptx はフキダシを調整値つき、多角形を custGeom で
+  const scene = { w: 1280, h: 720, bg: { color: '#ffffff' }, items: [
+    { kind: 'shape', geom: 'wedgeRectCallout', adj: [-30000, 110000], x: 10, y: 10, w: 200, h: 100 },
+    { kind: 'shape', geom: 'custom', poly: D.polygon(poly), polyX: 0, polyY: 0, polyW: 100, polyH: 100, x: 300, y: 10, w: 100, h: 100 },
+  ] };
+  const xml = require('../src/core/pptx').buildPptx([scene], { title: 'T' }).find((e) => e.name === 'ppt/slides/slide1.xml').data;
+  assert.ok(xml.includes('<a:prstGeom prst="wedgeRectCallout"><a:avLst><a:gd name="adj1" fmla="val -30000"/><a:gd name="adj2" fmla="val 110000"/>'));
+  assert.equal((xml.match(/<a:lnTo>/g) || []).length, 5);
+});
+
 test('セキュリティ: プロジェクトの外を指すパスは inside が null を返す（Windows の書き方も）', () => {
   const P = require('../src/app/pathx');
   for (const rel of ['..\\x', '../x', 'a/../../x', 'a\\..\\..\\x', 'C:\\Windows\\win.ini', 'C:/x', 'D:\\x', '\\\\server\\share\\x', '/etc/passwd']) {

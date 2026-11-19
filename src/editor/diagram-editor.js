@@ -43,9 +43,11 @@
     triangle: '<path d="M12 5l8.5 14h-17z"/>',
     cylinder: '<path d="M5.5 7c0-1.4 2.9-2.5 6.5-2.5s6.5 1.1 6.5 2.5v10c0 1.4-2.9 2.5-6.5 2.5S5.5 18.4 5.5 17z"/><path d="M5.5 7c0 1.4 2.9 2.5 6.5 2.5s6.5-1.1 6.5-2.5"/>',
     document: '<path d="M4.5 5h15v11.5c-2.5-1.5-4.5 2.5-7.5 1s-5-1.5-7.5 0z"/>',
+    callout: '<path d="M3.5 5h17v10.5H10l-4.5 4v-4h-2z"/>',
+    polygon: '<path d="M12 3.8l8.2 6-3.1 9.6H6.9L3.8 9.8z"/>',
     text: '<path d="M6 6.5h12M12 6.5V18"/>',
   };
-  const SIZES = { ellipse: [140, 90], diamond: [150, 100], chevron: [170, 70], pentagon: [170, 70], arrow: [150, 64], triangle: [120, 100], cylinder: [110, 120], text: [180, 44], hexagon: [160, 76] };
+  const SIZES = { ellipse: [140, 90], diamond: [150, 100], chevron: [170, 70], pentagon: [170, 70], arrow: [150, 64], triangle: [120, 100], cylinder: [110, 120], text: [180, 44], hexagon: [160, 76], callout: [170, 80], polygon: [110, 105] };
 
   // ---- 色（テーマに合わせた既定値と、パレット） ----
   function hexToRgb(hex) {
@@ -394,6 +396,12 @@
       const ry = it.y - 26 / z;
       g.append(el('line', { class: 'dg-rot-line', x1: rx, y1: it.y, x2: rx, y2: ry, 'stroke-width': 1.2 / z }));
       g.append(el('circle', { class: 'dg-handle is-rot', 'data-handle': 'rot', cx: rx, cy: ry, r: hs * 0.75, 'stroke-width': 1.2 / z }));
+      // フキダシのしっぽの先（ひし形のつまみ）。ドラッグで向き・長さを変える
+      if (it.shape === 'callout') {
+        const t = D.tailPoint(it);
+        const r = hs * 0.85;
+        g.append(el('path', { class: 'dg-handle is-tail', 'data-handle': 'tail', d: 'M' + t.x + ' ' + (t.y - r) + 'L' + (t.x + r) + ' ' + t.y + 'L' + t.x + ' ' + (t.y + r) + 'L' + (t.x - r) + ' ' + t.y + 'Z', 'stroke-width': 1.2 / z }));
+      }
     }
     if (sel.length === 1 && sel[0].type === 'line') {
       const pts = D.linePoints(sel[0], idx);
@@ -576,6 +584,7 @@
       snapshot();
       if (handle === 'from' || handle === 'to') ed.drag = { kind: 'end', id: it.id, end: handle, moved: false };
       else if (handle === 'rot') ed.drag = { kind: 'rotate', id: it.id, center: D.center(it), moved: false };
+      else if (handle === 'tail') ed.drag = { kind: 'tail', id: it.id, moved: false };
       else ed.drag = { kind: 'resize', id: it.id, handle, orig: { x: it.x, y: it.y, w: it.w, h: it.h, rot: D.rotOf(it) }, start: p, moved: false };
       return;
     }
@@ -636,6 +645,17 @@
           if (!o.to.id) it.to = { x: o.to.x + dx, y: o.to.y + dy };
         }
       }
+      ed.dirty = true;
+      render();
+      return;
+    }
+    if (d.kind === 'tail') {
+      // 回す前の向きで、枠に対する割合として持つ
+      const it = find(d.id);
+      const q = D.toLocal(it, p);
+      it.tail = [Math.round(((q.x - it.x) / it.w) * 1000) / 1000, Math.round(((q.y - it.y) / it.h) * 1000) / 1000];
+      it.tail = D.tailOf(it);
+      d.moved = true;
       ed.dirty = true;
       render();
       return;
@@ -725,7 +745,7 @@
       } else if (!d.moved) ed.history.pop();
       ed.hover = null;
     }
-    if ((d.kind === 'resize' || d.kind === 'rotate') && !d.moved) ed.history.pop();
+    if ((d.kind === 'resize' || d.kind === 'rotate' || d.kind === 'tail') && !d.moved) ed.history.pop();
     render();
   }
 
@@ -1045,6 +1065,28 @@
           h('button', { type: 'button', class: 'btn small', title: '向きを反対にする', onclick: () => setRot((r) => r + 180) }, '180°'),
           h('button', { type: 'button', class: 'btn small', onclick: () => setRot(() => 0) }, '元に戻す')),
         h('p', { class: 'dg-hint' }, '図形の上の ○ をドラッグしても回せます（15° ごと。Alt を押しながらで自由に）。')));
+      const polys = shapes.filter((it) => it.shape === 'polygon');
+      if (polys.length) {
+        const sidesIn = h('input', { type: 'number', value: D.sidesOf(polys[0]), step: 1, min: 3, max: 12 });
+        const setSides = (n) => change(() => { for (const it of polys) it.sides = Math.max(3, Math.min(12, Math.round(n) || D.DEFAULT_SIDES)); });
+        sidesIn.addEventListener('change', () => setSides(Number(sidesIn.value)));
+        p.append(section('多角形',
+          h('div', { class: 'dg-nums' }, h('label', { class: 'dg-num' }, h('span', null, '角の数'), sidesIn)),
+          h('div', { class: 'dg-arrange' }, ...[3, 4, 5, 6, 8].map((n) => h('button', { type: 'button', class: 'btn small', onclick: () => setSides(n) }, n + ' 角')))));
+      }
+      const callouts = shapes.filter((it) => it.shape === 'callout');
+      if (callouts.length) {
+        const setTail = (t) => change(() => { for (const it of callouts) it.tail = t.slice(); });
+        p.append(section('フキダシのしっぽ',
+          h('div', { class: 'dg-arrange' },
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([0.22, 1.45]) }, '左下'),
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([0.78, 1.45]) }, '右下'),
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([0.22, -0.45]) }, '左上'),
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([0.78, -0.45]) }, '右上'),
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([-0.3, 0.7]) }, '左'),
+            h('button', { type: 'button', class: 'btn small', onclick: () => setTail([1.3, 0.7]) }, '右')),
+          h('p', { class: 'dg-hint' }, 'しっぽの先の ◆ をドラッグすると、向きと長さを自由に変えられます。')));
+      }
     }
 
     if (lines.length) {

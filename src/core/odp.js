@@ -180,7 +180,7 @@
             const vw = Math.max(...pts.map((p) => p[0])) - minX || 1;
             const vh = Math.max(...pts.map((p) => p[1])) - minY || 1;
             const k = 1000;
-            return '<draw:polygon draw:style-name="' + gs + '" ' + box(it) + ' svg:viewBox="0 0 ' + Math.round(vw * k) + ' ' + Math.round(vh * k) + '" draw:points="' +
+            return '<draw:polygon draw:style-name="' + gs + '" ' + box(it.polyBox ? Object.assign({}, it, it.polyBox) : it) + ' svg:viewBox="0 0 ' + Math.round(vw * k) + ' ' + Math.round(vh * k) + '" draw:points="' +
               pts.map((p) => Math.round((p[0] - minX) * k) + ',' + Math.round((p[1] - minY) * k)).join(' ') + '">' + text + '</draw:polygon>';
           }
           if (it.geom === 'ellipse') return '<draw:ellipse draw:style-name="' + gs + '" ' + box(it) + '>' + text + '</draw:ellipse>';

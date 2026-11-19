@@ -506,6 +506,8 @@
   gap: 0.75em;
   overflow-wrap: anywhere;
 }
+/* カラムの中のコードは、カラムの幅に収めて折り返す（中央寄せのカラムでは、長い行の幅のまま左右へはみ出していた） */
+.ks-col pre.ks-code { align-self: stretch; max-width: 100%; white-space: pre-wrap; overflow-wrap: anywhere; }
 
 /* ---- カラムの囲み（data-col-style: outline 枠線 / fill 塗り / card カード） ----
    色は render.js が --ks-col-N（塗り色）と --ks-on-col-N（その上の文字色）で渡す */
