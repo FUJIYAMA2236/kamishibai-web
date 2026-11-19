@@ -40,6 +40,8 @@ git merge upstream/main
 npm test && npm run build:web
 ```
 
+取り込み済みの本流: `482b138`（0.4.2 図形の回転・段階表示をカラム 1 列ずつに・カラムの縦 / 格子の並べ方。2026-11-19）
+
 本流で次のものが変わったら、Web 版側も合わせて直すこと:
 
 - **backend.js の host の約束**（`readFile` / `writeFile` / `stat` / `bundled` / `zip` など）や **API**（`/api/…`）… `web-host.js` の host / `api()`
