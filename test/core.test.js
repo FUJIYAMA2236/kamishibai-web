@@ -537,6 +537,41 @@ test('図形: フキダシ（しっぽ）と正多角形（角の数）', () => 
   assert.equal((xml.match(/<a:lnTo>/g) || []).length, 5);
 });
 
+test('升目レイアウト: 部品の分け方・置き場所・値のそろえ方', () => {
+  const md = '## T\n\n![](assets/a.png)\n\n### 説明\n\n- x\n- y\n\nつづき\n\n```mermaid\nflowchart LR\nA-->B\n```\n\n| a |\n| - |\n| 1 |\n';
+  const out = renderOne(md, { slides: { t: { layout: 'grid', grid: { cols: 3, rows: 2, place: { 'img:assets/a.png': [1, 1, 2, 2], p2: [9, 1, 1, 1], p1: ['3', 1, 5, 1] } } } } });
+  const s = out.slides[0];
+  assert.equal(s.layout, 'grid');
+  assert.deepEqual(s.grid.parts.map((p) => p.key + ':' + p.kind), ['img:assets/a.png:media', 'p1:text', 'p2:media', 'p3:text']);
+  assert.deepEqual(s.grid.parts.map((p) => p.at && p.at.join()), ['1,1,2,2', '3,1,1,1', null, null]); // マスの外は捨て、はみ出す幅は 1 に
+  assert.match(s.html, /<header class="ks-head"><h2[^>]*>T<\/h2>/);
+  assert.match(s.html, /data-part="img:assets\/a.png" style="grid-area:1 \/ 1 \/ span 2 \/ span 2"/);
+  assert.match(s.html, /--ks-grid-cols:3;--ks-grid-rows:2/);
+  // 小見出し・箇条書き・段落は 1 つのまとまり
+  assert.match(s.html, /data-part="p1"[^>]*><h3[^>]*>説明<\/h3>\n?<ul>[\s\S]*<p>つづき<\/p>\n?<\/div>/);
+});
+
+test('画像のトリミング: {crop=上,右,下,左} の読み書きと描画', () => {
+  assert.deepEqual(parse.parseAttrs('crop=10,0,5,2.25 .shadow').crop, [10, 0, 5, 2.3]);
+  assert.equal(parse.parseAttrs('crop=60,0,40,0').crop, undefined); // 何も残らない
+  assert.equal(parse.parseAttrs('crop=1;2,3,4').crop, undefined);
+  assert.equal(parse.formatAttrs({ width: '40%', crop: [10, 0, 5, 0], classes: [] }), '{width=40% crop=10,0,5,0}');
+  assert.equal(parse.formatAttrs({ crop: [0, 0, 0, 0], classes: [] }), '');
+  const html = renderOne('## A\n\n![](assets/a.png){crop=10,0,5,0}').slides[0].html;
+  assert.match(html, /style="object-view-box:inset\(10% 0% 5% 0%\)"/);
+  assert.match(html, /data-crop="10,0,5,0"/);
+  // 図形の中の画像
+  const D = require('../src/core/diagram');
+  const it = { id: 'i', type: 'shape', shape: 'image', src: 'data:image/png;base64,AAAA', ratio: 2, x: 0, y: 0, w: 100, h: 50, crop: [0, 25, 0, 25], text: '', style: {} };
+  const m = D.normalizeModel({ items: [it, Object.assign({}, it, { id: 'j', crop: ['x', 1, 2, 3] })] });
+  assert.deepEqual(m.items[0].crop, [0, 25, 0, 25]);
+  assert.equal(m.items[1].crop, undefined);
+  assert.equal(D.shownRatio(it), 1);
+  const svg = D.toSvg({ version: 1, font: '', items: [it] });
+  assert.match(svg, /<svg x="0" y="0" width="100" height="50" viewBox="500 0 1000 1000"/);
+  assert.equal(D.fromSvg(svg).items[0].src, it.src); // 入れ子にしても画像は読み戻せる
+});
+
 test('セキュリティ: プロジェクトの外を指すパスは inside が null を返す（Windows の書き方も）', () => {
   const P = require('../src/app/pathx');
   for (const rel of ['..\\x', '../x', 'a/../../x', 'a\\..\\..\\x', 'C:\\Windows\\win.ini', 'C:/x', 'D:\\x', '\\\\server\\share\\x', '/etc/passwd']) {

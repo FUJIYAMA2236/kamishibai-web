@@ -81,6 +81,20 @@
     });
   }
 
+  // 升目の文字のマス: あふれたら、そのマスの文字だけを縮める（--ks-cell-fit）
+  function fitCells(slide) {
+    slide.querySelectorAll('.ks-cell:not(.is-media)').forEach((cell) => {
+      cell.style.removeProperty('--ks-cell-fit');
+      if (!cell.clientHeight) return;
+      const over = () => cell.scrollHeight > cell.clientHeight + 1 || cell.scrollWidth > cell.clientWidth + 1;
+      let fit = 1;
+      while (over() && fit > 0.4) {
+        fit = Math.round((fit - 0.05) * 100) / 100;
+        cell.style.setProperty('--ks-cell-fit', fit);
+      }
+    });
+  }
+
   function fitSlide(slide) {
     const inner = slide.querySelector('.ks-inner');
     if (!inner || !inner.clientHeight) return;
@@ -89,6 +103,7 @@
     // 登場アニメーション中の transform を誤検出しないよう、計測中だけ止める
     slide.classList.add('ks-measuring');
     fitColumns(slide);
+    fitCells(slide);
     if (!overflows(slide, inner)) { slide.classList.remove('ks-measuring'); return; }
     let fit = 1;
     while (overflows(slide, inner) && fit > 0.5) {

@@ -215,6 +215,18 @@
   // ------------------------------------------------------------------
   const RE_IMAGE = /!\[((?:[^\]\\\n]|\\.)*)\]\(\s*(<[^>\n]*>|[^\s)]+)(?:\s+("[^"\n]*"|'[^'\n]*'))?\s*\)(\{[^}\n]*\})?/g;
 
+  /**
+   * トリミング "crop=上,右,下,左"（画像の幅・高さに対する %）→ [上, 右, 下, 左]。おかしな値・何も切らない値は null
+   * 例: crop=10,0,5,0 … 上を 10%、下を 5% 切る
+   */
+  function parseCrop(v) {
+    const a = String(v).split(',').map((x) => Number(x));
+    if (a.length !== 4 || !a.every((x) => Number.isFinite(x) && x >= 0 && x < 100)) return null;
+    if (a[0] + a[2] >= 97 || a[1] + a[3] >= 97) return null; // 何も残らない
+    const r = a.map((x) => Math.round(x * 10) / 10);
+    return r.some((x) => x > 0) ? r : null;
+  }
+
   /** "{width=40% .shadow}" の中身 → { width: '40%', height: undefined, classes: ['shadow'] }（値は書かれたまま） */
   function parseAttrs(text) {
     const out = { classes: [] };
@@ -223,6 +235,7 @@
       if (part[0] === '.') { const c = part.slice(1).replace(/[^\w-]/g, ''); if (c) out.classes.push(c); continue; }
       const m = /^(\w+)=(.+)$/.exec(part);
       if (!m) continue;
+      if (m[1] === 'crop') { const c = parseCrop(m[2]); if (c) out.crop = c; continue; }
       const v = m[2].replace(/[^\w.%-]/g, '');
       if (m[1] === 'width' || m[1] === 'w') out.width = v;
       else if (m[1] === 'height' || m[1] === 'h') out.height = v;
@@ -236,6 +249,7 @@
     const parts = [];
     if (attrs.width) parts.push('width=' + attrs.width);
     if (attrs.height) parts.push('height=' + attrs.height);
+    if (attrs.crop && parseCrop(attrs.crop.join(','))) parts.push('crop=' + parseCrop(attrs.crop.join(',')).join(','));
     for (const c of attrs.classes || []) parts.push('.' + c);
     return parts.length ? '{' + parts.join(' ') + '}' : '';
   }
@@ -308,6 +322,6 @@
   return {
     RE: { separator: RE_SEPARATOR, notes: RE_NOTES, column: RE_COLUMN, id: RE_ID, colsOpen: RE_COLS_OPEN, colsClose: RE_COLS_CLOSE },
     parseDeck, slideIndexAtLine, pinSlideId, slugify, plainText, fenceTracker,
-    parseAttrs, formatAttrs, findImages, setImageAttrs, slideBodyRange, insertBlockAt,
+    parseAttrs, parseCrop, formatAttrs, findImages, setImageAttrs, slideBodyRange, insertBlockAt,
   };
 });

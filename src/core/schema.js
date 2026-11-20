@@ -171,6 +171,7 @@
     ['image-left', '画像：左'],
     ['image-full', '画像：全面'],
     ['quote', '引用'],
+    ['grid', '升目（手動配置）'],
   ];
 
   const ANIMATION = {

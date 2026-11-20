@@ -476,6 +476,16 @@
     }
     return { url, w, h: hh };
   }
+  // 図形の中の画像のトリミング。見せる範囲が変わったら、枠の高さもその縦横比に合わせる
+  async function cropShape(it) {
+    const v = await app.cropImage({ src: it.src, crop: it.crop });
+    if (!v) return;
+    change(() => {
+      if (app.cropActive(v)) it.crop = v; else delete it.crop;
+      if (it.ratio) it.h = Math.max(12, Math.round(it.w / D.shownRatio(it)));
+    });
+  }
+
   function pickImage(replace) {
     const input = h('input', { type: 'file', accept: 'image/*' });
     input.addEventListener('change', () => { if (input.files[0]) addImage(input.files[0], null, replace); });
@@ -1013,7 +1023,8 @@
         st.stroke && st.stroke !== 'none' ? row('線の太さ', range(0, 10, 0.5, st.strokeWidth, (v) => setStyle(images, 'strokeWidth', v))) : null,
         h('div', { class: 'dg-arrange' },
           one ? h('button', { type: 'button', class: 'btn small', onclick: () => pickImage(one) }, '画像を差し替える…') : null,
-          h('button', { type: 'button', class: 'btn small', title: '枠の幅はそのままで、高さを画像の縦横比に合わせます', onclick: () => change(() => { for (const it of images) if (it.ratio) it.h = Math.max(12, Math.round(it.w / it.ratio)); }) }, '元の縦横比に戻す')),
+          one && app.cropImage ? h('button', { type: 'button', class: 'btn small' + (D.cropOf(one) ? ' is-active' : ''), title: '画像の見せる範囲を選びます（元の画像は残ります）', onclick: () => cropShape(one) }, 'トリミング…') : null,
+          h('button', { type: 'button', class: 'btn small', title: '枠の幅はそのままで、高さを画像の縦横比（トリミングした範囲の比）に合わせます', onclick: () => change(() => { for (const it of images) if (it.ratio) it.h = Math.max(12, Math.round(it.w / D.shownRatio(it))); }) }, '元の縦横比に戻す')),
         h('p', { class: 'dg-hint' }, 'ダブルクリックで、画像の上に文字を重ねられます。図形と同じように線でつなげます。')));
     }
 

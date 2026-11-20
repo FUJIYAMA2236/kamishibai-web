@@ -308,6 +308,7 @@
   }
 
   const IMG_ICON = {
+    crop: '<path d="M7 3v14h14M3 7h14v14"/>',
     shadow: '<rect x="4" y="4" width="13" height="13" rx="2"/><path d="M20 8v10a2 2 0 0 1-2 2H8"/>',
     round: '<circle cx="12" cy="12" r="8"/>',
     square: '<rect x="4.5" y="4.5" width="15" height="15"/>',
@@ -340,6 +341,8 @@
       const width = im.attrs.width;
       const img = h('img', { src: assetUrl(im.src), alt: im.alt || '', draggable: false, class: im.attrs.classes.join(' ') });
       if (width) img.style.width = /%$/.test(width) ? width : /^\d+(\.\d+)?$/.test(width) ? width + 'px' : width;
+      // トリミング（スライドと同じく見せる範囲だけ）
+      if (im.attrs.crop) img.style.setProperty('object-view-box', 'inset(' + im.attrs.crop.map((x) => x + '%').join(' ') + ')');
       const cls = im.attrs.classes;
       const toggle = (c, others) => edit((a) => {
         const on = !a.classes.includes(c);
@@ -358,6 +361,10 @@
         tool('square', '角を立てる', () => toggle('plain', ['round']), cls.includes('plain')),
         width ? tool('reset', '大きさを戻す', () => edit((a) => { a.width = undefined; a.height = undefined; return a; })) : null,
         app.diagram && app.diagram.isDiagram(im.src) ? tool('diagram', '図形を編集', () => app.diagram.open({ path: app.safeDecode(im.src) })) : null,
+        app.cropImage ? tool('crop', 'トリミング', async () => {
+          const c = await app.cropImage({ src: assetUrl(im.src), crop: im.attrs.crop });
+          if (c) edit((a) => { a.crop = app.cropActive(c) ? c : null; return a; });
+        }, !!im.attrs.crop) : null,
         tool('edit', '記法を編集', () => this.reveal(v)),
         tool('trash', '削除', () => edit(() => null)));
       const label = h('span', { class: 'cm-img-size' });

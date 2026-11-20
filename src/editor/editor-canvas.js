@@ -41,6 +41,7 @@
     square: '<rect x="4.5" y="4.5" width="15" height="15"/>',
     reset: '<path d="M4.5 12a7.5 7.5 0 1 0 2.4-5.5M4.5 4.5v4h4"/>',
     trash: '<path d="M5 7h14M10 7V5h4v2M7 7l1 12h8l1-12"/>',
+    crop: '<path d="M7 3v14h14M3 7h14v14"/>',
     diagram: '<rect x="3.5" y="4" width="7" height="5" rx="1.5"/><path d="M14 15l3.5-3.5 3 3L17 18h-3z"/><path d="M7 9v6h4"/>',
   };
 
@@ -292,7 +293,18 @@
       }
     }
     if (app.diagram && app.diagram.isDiagram(sel.src)) toolbar.prepend(tool('diagram', '図形を編集', () => app.diagram.open({ path: app.safeDecode(sel.src) })));
+    toolbar.append(tool('crop', 'トリミング', cropSelected, !!img.dataset.crop));
     toolbar.append(tool('trash', '削除', removeImage));
+  }
+  // トリミング: ダイアログで範囲を選び、slides.md の {crop=上,右,下,左} に書く（元の画像はそのまま）
+  async function cropSelected() {
+    if (!sel || !app.cropImage) return;
+    const target = sel;
+    const im = app.slideImages()[target.index];
+    if (!im) return;
+    const v = await app.cropImage({ src: app.assetUrl(im.src), crop: im.attrs.crop });
+    if (!v) return;
+    app.editImage(app.slideRange(), target.index, target.src, (a) => { a.crop = app.cropActive(v) ? v : null; return a; });
   }
   // 図形（.diagram.svg）はダブルクリックで図形エディタを開く
   host.addEventListener('dblclick', () => {

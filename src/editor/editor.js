@@ -550,7 +550,7 @@
       toast('画像の書かれている場所を特定できませんでした。Markdown を直接書き換えてください', true);
       return false;
     }
-    const attrs = change({ width: im.attrs.width, height: im.attrs.height, classes: im.attrs.classes.slice() });
+    const attrs = change({ width: im.attrs.width, height: im.attrs.height, crop: im.attrs.crop || null, classes: im.attrs.classes.slice() });
     let text;
     if (attrs === null) {
       // 画像を消す。行に他に何も無ければ行ごと消す
@@ -848,6 +848,7 @@
     'image-left': [[0, 0, 18, 24, 'i'], [22, 5, 12, 3, 'a'], [22, 11, 13, 2, 'm'], [22, 15, 11, 2, 'm']],
     'image-full': [[0, 0, 40, 24, 'i'], [5, 13, 16, 3, 'a'], [5, 18.5, 22, 2, 'm']],
     quote: [[6, 4.5, 4.5, 4.5, 'a'], [6, 11.5, 26, 2.4, 'm'], [6, 16, 20, 2.4, 'm']],
+    grid: [[5, 3, 14, 3, 'a'], [5, 8.5, 18, 12.5, 'i'], [25, 8.5, 10, 5.5, 'm'], [25, 15.5, 10, 5.5, 'm']],
   };
   function layoutIcon(id) {
     const rects = LAYOUT_ICONS[id];
@@ -920,6 +921,24 @@
     panel.append(group('columns', 'カラムの囲み', children, current || (sd.colColors ? '色' : null)));
   }
 
+  // 升目（手動配置）: 縦横の分け方と、置き場所の解除。置く操作はプレビュー（editor-grid.js）
+  function renderGridGroup(panel, out, sd) {
+    const g = out.grid || { cols: 2, rows: 2, parts: [] };
+    const nums = (n) => Array.from({ length: n }, (_, i) => [String(i + 1), String(i + 1)]);
+    // 分け方を減らしたら、はみ出す置き場所は render 側で外れる（gridConfig）
+    const setNum = (key, v) => { setSlideValue(['grid', key], Number(v)); refresh(); renderPanel(); };
+    const placed = g.parts.filter((p) => p.at).length;
+    panel.append(group('grid', '升目', [
+      field({ label: '横に分ける', control: segControl(nums(6), String(g.cols), (v) => setNum('cols', v)) }),
+      field({ label: '縦に分ける', control: segControl(nums(6), String(g.rows), (v) => setNum('rows', v)) }),
+      h('div', { class: 'row-actions' },
+        h('button', { type: 'button', class: 'btn small', disabled: !placed, onclick: () => { setSlideValue(['grid', 'place'], undefined); refresh(); renderPanel(); } }, '置き場所をすべて解除')),
+      h('p', { class: 'hint' }, 'プレビューの部品（画像・図・文章のまとまり）にマウスを乗せ、左上のつまみで別のマスへ、右下のつまみで何マス分を使うかを変えられます。' +
+        '置いていない部品は、空いているマスへ順に入ります。文章は ### の小見出しや ||| でも区切れます。'),
+      h('p', { class: 'hint' }, '部品 ' + g.parts.length + ' 個（置き場所を決めたもの ' + placed + ' 個）・マス ' + g.cols * g.rows + ' 個'),
+    ], placed ? '配置' : null));
+  }
+
   function renderSlideTab(panel) {
     const slide = currentSlide();
     const out = currentOut();
@@ -961,6 +980,7 @@
     );
 
     if (out.layout === 'columns') renderColumnsGroup(panel, out, sd);
+    if (out.layout === 'grid') renderGridGroup(panel, out, sd);
     if (app.renderImagePanel) app.renderImagePanel(panel, { group, field, rangeControl, segControl });
 
     panel.append(
@@ -1496,6 +1516,28 @@
    * ページ全体（ウィンドウ）は決してスクロールさせない。原稿エディタの「その行へ移動」や、
    * 画面の中の要素を見えるようにする処理が外側の枠まで動かし、上のバーやプレビューが画面の外に出たまま戻らなくなったことがあるため。
    */
+  // 対応していないブラウザ（Firefox / Safari など）で開いたときの注意。
+  // 判定は機能の有無（CSS.supports）で行い、ユーザーエージェントは名前を出すためだけに使う（偽装や将来の対応で外れないように）。
+  // 閉じたら、このブラウザでは次から出さない
+  function warnUnsupportedBrowser() {
+    const S = (p) => { try { return CSS.supports(p); } catch (e) { return false; } };
+    const missing = [];
+    if (!S('object-view-box: inset(0%)')) missing.push('画像のトリミング（画像全体が表示されます）');
+    if (!S('word-break: auto-phrase')) missing.push('日本語の文節での折り返し（文字の途中で折り返します）');
+    if (!missing.length) return;
+    try { if (localStorage.getItem('ks.browserWarned') === '1') return; } catch (e) { /* 保存できなくても出す */ }
+    const ua = navigator.userAgent;
+    const name = /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) && !/Chrome\/|Chromium\//.test(ua) ? 'Safari' : 'このブラウザ';
+    const close = h('button', { type: 'button', class: 'browser-warn-close', title: '閉じる（このブラウザでは次から出しません）', html: '&times;' });
+    const box = h('div', { class: 'browser-warn', role: 'status' },
+      h('b', null, name + ' では、一部の表示が正しくなりません'),
+      h('ul', null, ...missing.map((m) => h('li', null, m))),
+      h('p', null, 'Chrome / Edge で開くか、デスクトップ版をお使いください。書き出した .pptx / .pdf などの中身には影響しません。'),
+      close);
+    close.addEventListener('click', () => { box.remove(); try { localStorage.setItem('ks.browserWarned', '1'); } catch (e) { /* 無視 */ } });
+    document.body.append(box);
+  }
+
   function guardPageScroll() {
     const reset = () => {
       if (window.scrollX || window.scrollY) window.scrollTo(0, 0);
@@ -1561,7 +1603,7 @@
     refresh, setCurrent, showMain, renderPanel, showTab, currentSlide, currentOut,
     updateMd, applyMd, insertIntoSlide, insertAtLine, uploadImages, makeDropTarget, present,
     editImage, slideRange, slideImages, setSlideValue, slideDesign, designChanged, setSide, setMode, setLayout,
-    currentTheme, saveExport,
+    currentTheme, saveExport, warnUnsupportedBrowser,
     /** 描画済みのスライド（サムネイルの中の .ks-slide）。PowerPoint などへの書き出しが使う */
     slideElements: () => thumbs.map((t) => t.slide),
     async start() {
@@ -1572,6 +1614,7 @@
       guardWindowDrop();
       initFilmWheel();
       guardPageScroll();
+      warnUnsupportedBrowser();
       setLayout(localStorage.getItem('ks.sideLeft') === '1');
       setSide(state.side);
       setMode(state.mode);

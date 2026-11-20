@@ -499,13 +499,20 @@
 
   // 図形（.diagram.svg）→ PowerPoint の図形のグループ
   const GEOM = { rect: 'rect', round: 'roundRect', ellipse: 'ellipse', diamond: 'diamond', parallelogram: 'parallelogram', hexagon: 'hexagon', chevron: 'chevron', pentagon: 'homePlate', arrow: 'rightArrow', triangle: 'triangle', cylinder: 'can', document: 'flowChartDocument', callout: 'wedgeRectCallout', polygon: 'custom', text: 'rect' };
+  /** "上,右,下,左"（%）→ 元の画像のうち見せる範囲（px）。切り抜いていなければ null */
+  function userCrop(v, nw, nh) {
+    const a = Array.isArray(v) ? v.map(Number) : String(v || '').split(',').map(Number);
+    if (a.length !== 4 || !a.every(Number.isFinite) || !a.some((n) => n > 0)) return null;
+    return { x: (nw * a[3]) / 100, y: (nh * a[0]) / 100, w: nw * (1 - (a[1] + a[3]) / 100), h: nh * (1 - (a[0] + a[2]) / 100) };
+  }
   /** 図形の中の画像 → 表示されている部分だけの画像（収め方: 全体を表示 / 枠いっぱい） */
   async function diagramImage(it, st, X, Y, s) {
     const img = new Image();
     img.src = it.src;
     await img.decode();
-    const nw = img.naturalWidth || it.w;
-    const nh = img.naturalHeight || it.h;
+    const uc = userCrop(it.crop, img.naturalWidth || it.w, img.naturalHeight || it.h);
+    const nw = uc ? uc.w : img.naturalWidth || it.w;
+    const nh = uc ? uc.h : img.naturalHeight || it.h;
     let box = { x: it.x, y: it.y, w: it.w, h: it.h };
     let crop = null;
     if (st.fit === 'cover') {
@@ -515,6 +522,7 @@
       const k = Math.min(it.w / nw, it.h / nh);
       box = { x: it.x + (it.w - nw * k) / 2, y: it.y + (it.h - nh * k) / 2, w: nw * k, h: nh * k };
     }
+    if (uc) crop = crop ? { x: crop.x + uc.x, y: crop.y + uc.y, w: crop.w, h: crop.h } : uc;
     const src = crop || { w: nw, h: nh };
     const jpeg = /^data:image\/jpe?g/.test(it.src);
     const k = Math.min(1, 2000 / Math.max(src.w, src.h));
@@ -618,8 +626,10 @@
           const vb = /viewBox="([-\d.\s]+)"/.exec(text);
           if (model && vb) { out.push(await diagramGroup(model, vb[1].trim().split(/\s+/).map(Number), it)); continue; }
         }
-        const nw = it.el.naturalWidth || it.w;
-        const nh = it.el.naturalHeight || it.h;
+        // トリミング（{crop=上,右,下,左}）: 画像のうち、この範囲を「元の画像」として扱う
+        const uc = userCrop(it.el.dataset.crop, it.el.naturalWidth || it.w, it.el.naturalHeight || it.h);
+        const nw = uc ? uc.w : it.el.naturalWidth || it.w;
+        const nh = uc ? uc.h : it.el.naturalHeight || it.h;
         const isSvg = /\.svg(\?|#|$)/i.test(raw) || /^data:image\/svg/.test(url);
         // 表示されている範囲（object-fit: cover は切り抜き、contain は内側に縮める）
         let crop = null;
@@ -635,6 +645,7 @@
           const sc = Math.min(it.w / nw, it.h / nh);
           box = { x: it.x + (it.w - nw * sc) / 2, y: it.y + (it.h - nh * sc) / 2, w: nw * sc, h: nh * sc };
         }
+        if (uc) crop = crop ? { x: crop.x + uc.x, y: crop.y + uc.y, w: crop.w, h: crop.h } : uc;
         let media;
         if (isSvg) media = await rasterize(url, box.w * 2, box.h * 2, crop);
         else if (crop) media = await rasterize(url, Math.min(crop.w, 2400), Math.min(crop.w, 2400) * (crop.h / crop.w), crop, true);

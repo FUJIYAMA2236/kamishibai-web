@@ -36,6 +36,7 @@
     out.width = SIZE_RE.test(px(out.width) || '') ? px(out.width) : undefined;
     out.height = SIZE_RE.test(px(out.height) || '') ? px(out.height) : undefined;
     out.classes = (out.classes || []).filter((c) => /^[\w-]+$/.test(c));
+    out.crop = out.crop ? parse.parseCrop(out.crop.join(',')) : null; // 数値だけ（そのまま CSS に入るため）
     return out;
   }
 
@@ -89,18 +90,22 @@
       title: token.attrGet('title') || '',
       width: info.width,
       height: info.height,
+      crop: info.crop || null,
       classes: info.classes || [],
     };
   }
 
   function imgTag(img, extraClass) {
-    const style = [img.width ? 'width:' + img.width : '', img.height ? 'height:' + img.height : ''].filter(Boolean).join(';');
+    // トリミング: 画像のうち見せる範囲（object-view-box。縦横比も切り抜いた範囲のものになる）
+    const crop = img.crop ? 'object-view-box:inset(' + img.crop.map((v) => v + '%').join(' ') + ')' : '';
+    const style = [img.width ? 'width:' + img.width : '', img.height ? 'height:' + img.height : '', crop].filter(Boolean).join(';');
     const cls = [extraClass].concat(img.classes).filter(Boolean).join(' ');
     return (
       '<img src="' + esc(img.src) + '" alt="' + esc(img.alt) + '"' +
       (cls ? ' class="' + esc(cls) + '"' : '') +
       (style ? ' style="' + esc(style) + '"' : '') +
       (img.index != null ? ' data-img="' + img.index + '" data-src="' + esc(img.rawSrc) + '"' : '') +
+      (img.crop ? ' data-crop="' + img.crop.join(',') + '"' : '') +
       ' draggable="false">'
     );
   }
@@ -376,6 +381,62 @@
     return String(template || '').replace(/\{(\w+)\}/g, (m, k) => (k in values ? values[k] : m));
   }
 
+  // ------------------------------------------------------------------
+  // 升目（grid）レイアウト: スライドを縦横に分け、部品をマスに置く
+  // ------------------------------------------------------------------
+  /**
+   * 本文を「部品」に分ける。画像・図・Mermaid・表・コードは 1 つずつ、文章（段落・箇条書き・引用）は続くものをひとまとめ、
+   * 小見出し（###）は次の部品の頭に付く。||| の区切りでも分かれる。
+   * key: 画像は 'img:<書いたままのパス>'（文章を足しても変わらない）、それ以外は 'p<番号>'
+   */
+  function gridParts(seqs) {
+    const parts = [];
+    for (const seq of seqs) {
+      let cur = null;
+      let pendingHead = [];
+      const flush = () => { if (cur) { parts.push(cur); cur = null; } };
+      for (const b of seq) {
+        if (b.type === 'heading') { flush(); pendingHead.push(b); continue; }
+        const solo = b.type === 'image' || b.type === 'images' || b.type === 'mermaid' || b.type === 'table' || b.type === 'code';
+        if (solo || !cur) {
+          flush();
+          cur = { blocks: pendingHead.concat([b]), media: b.type === 'image' || b.type === 'images' || b.type === 'mermaid' };
+          pendingHead = [];
+          if (solo) flush();
+        } else cur.blocks.push(b);
+      }
+      flush();
+      if (pendingHead.length) parts.push({ blocks: pendingHead, media: false });
+    }
+    let n = 0;
+    for (const p of parts) {
+      const img = p.blocks.find((b) => b.type === 'image');
+      p.key = img && img.images[0].rawSrc ? 'img:' + img.images[0].rawSrc : 'p' + n;
+      n++;
+    }
+    // 同じ画像を 2 回使ったときは、2 つ目から番号で区別する
+    const seen = {};
+    for (const p of parts) { if (seen[p.key]) p.key += '#' + seen[p.key]++; else seen[p.key] = 1; }
+    return parts;
+  }
+  /** 升目の設定（slides.<ID>.grid）をそろえる: { cols, rows, place: { key: [列, 行, 横のマス数, 縦のマス数] } }（1 始まり） */
+  function gridConfig(g) {
+    const int = (v, lo, hi, d) => { const x = Math.round(Number(v)); return x >= lo && x <= hi ? x : d; };
+    const cols = int(g && g.cols, 1, 6, 2);
+    const rows = int(g && g.rows, 1, 6, 2);
+    const place = {};
+    if (g && isObj(g.place)) {
+      for (const [k, v] of Object.entries(g.place)) {
+        if (!Array.isArray(v) || v.length !== 4 || typeof k !== 'string' || k.length > 300) continue;
+        const c = int(v[0], 1, cols, 0);
+        const r = int(v[1], 1, rows, 0);
+        if (!c || !r) continue;
+        place[k] = [c, r, int(v[2], 1, cols - c + 1, 1), int(v[3], 1, rows - r + 1, 1)];
+      }
+    }
+    return { cols, rows, place };
+  }
+
   function renderSlide(slide, ctx) {
     const { md, env, resolved, meta, total } = ctx;
     const sd = resolved.slides[slide.id] || {};
@@ -393,6 +454,7 @@
 
     let head = '';
     let body = '';
+    let gridInfo = null;
     let media = '';
     let bg = '';
     if (layout === 'columns') {
@@ -417,6 +479,20 @@
       body = join(flat);
       if (layout === 'image-full') bg = imgTag(image);
       else media = '<div class="ks-media">' + imgTag(image) + '</div>';
+    } else if (layout === 'grid') {
+      // 見出しは上に。残りを部品に分けてマスへ（置き場所の無い部品は空いているマスへ順に入る）
+      const seqs = [pre.slice()].concat(columns.map((c) => c.slice()), [post.slice()]);
+      const firstSeq = seqs.find((s) => s.length);
+      const h = firstSeq ? takeHead(firstSeq) : null;
+      if (h) head = h.html;
+      const g = gridConfig(sd.grid);
+      gridInfo = { cols: g.cols, rows: g.rows, parts: [] };
+      body = gridParts(seqs).map((p) => {
+        const at = g.place[p.key];
+        gridInfo.parts.push({ key: p.key, at: at || null, kind: p.media ? 'media' : 'text' });
+        const area = at ? ' style="grid-area:' + at[1] + ' / ' + at[0] + ' / span ' + at[3] + ' / span ' + at[2] + '"' : '';
+        return '<div class="ks-cell' + (p.media ? ' is-media' : '') + '" data-part="' + esc(p.key) + '"' + area + '>' + join(p.blocks) + '</div>';
+      }).join('');
     } else if (layout === 'content') {
       const h = takeHead(flat);
       if (h) head = h.html;
@@ -463,6 +539,7 @@
         style.push('--ks-bg-slide:' + c, '--ks-bg-title:' + c, '--ks-bg-section:' + c);
       }
     }
+    if (gridInfo) style.push('--ks-grid-cols:' + gridInfo.cols, '--ks-grid-rows:' + gridInfo.rows);
     if (sd.mediaSize) style.push('--ks-media-size:' + Number(sd.mediaSize) + '%');
     const focus = /^(\d{1,3}(?:\.\d+)?)% (\d{1,3}(?:\.\d+)?)%$/.exec(String(sd.focus || ''));
     if (focus) style.push('--ks-media-pos:' + focus[1] + '% ' + focus[2] + '%');
@@ -496,6 +573,7 @@
       title: slide.title,
       layout,
       autoLayout,
+      grid: gridInfo,
       hasImage: imageIndex >= 0,
       hasMermaid: html.indexOf('ks-mermaid-src') >= 0,
       notesHtml,

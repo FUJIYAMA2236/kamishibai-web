@@ -98,6 +98,16 @@
     }
   }
 
+  // ---- 画像のトリミング（crop: [上, 右, 下, 左]。元の画像の幅・高さに対する %）----
+  function cropOf(it) {
+    const a = Array.isArray(it.crop) ? it.crop.map(Number) : null;
+    if (!a || a.length !== 4 || !a.every((v) => Number.isFinite(v) && v >= 0 && v < 100)) return null;
+    if (a[0] + a[2] >= 97 || a[1] + a[3] >= 97 || !a.some((v) => v > 0)) return null;
+    return a.map((v) => Math.round(v * 10) / 10);
+  }
+  /** トリミングしたあとの縦横比（幅 / 高さ） */
+  const shownRatio = (it) => { const c = cropOf(it); return c && it.ratio ? (it.ratio * (100 - c[1] - c[3])) / (100 - c[0] - c[2]) : it.ratio; };
+
   // ---- フキダシ・多角形 ----
   const DEFAULT_TAIL = [0.22, 1.45];
   const DEFAULT_SIDES = 5;
@@ -411,8 +421,19 @@
       let out = '';
       if (it.shape === 'image' && it.src) {
         // 属性の順（id → href）は fromSvg が読み戻すときに頼っている
-        out += '<image id="ks-img-' + esc(it.id) + '" href="' + esc(it.src) + '" x="' + num(it.x) + '" y="' + num(it.y) + '" width="' + num(it.w) + '" height="' + num(it.h) + '"' +
-          ' preserveAspectRatio="xMidYMid ' + (st.fit === 'cover' ? 'slice' : 'meet') + '"/>';
+        const par = 'xMidYMid ' + (st.fit === 'cover' ? 'slice' : 'meet');
+        const c = cropOf(it);
+        if (c && it.ratio > 0) {
+          // トリミング: 画像を（元の縦横比の）W×H に置き、見せる範囲だけを viewBox で切り出す
+          const W = 1000 * it.ratio;
+          const H = 1000;
+          const vb = [(W * c[3]) / 100, (H * c[0]) / 100, (W * (100 - c[1] - c[3])) / 100, (H * (100 - c[0] - c[2])) / 100];
+          out += '<svg x="' + num(it.x) + '" y="' + num(it.y) + '" width="' + num(it.w) + '" height="' + num(it.h) + '" viewBox="' + vb.map(num).join(' ') + '" preserveAspectRatio="' + par + '">' +
+            '<image id="ks-img-' + esc(it.id) + '" href="' + esc(it.src) + '" x="0" y="0" width="' + num(W) + '" height="' + num(H) + '" preserveAspectRatio="none"/></svg>';
+        } else {
+          out += '<image id="ks-img-' + esc(it.id) + '" href="' + esc(it.src) + '" x="' + num(it.x) + '" y="' + num(it.y) + '" width="' + num(it.w) + '" height="' + num(it.h) + '"' +
+            ' preserveAspectRatio="' + par + '"/>';
+        }
       }
       out += shapeOutline(it, attrs);
       if (it.text) {
@@ -524,6 +545,8 @@
         if (o.shape === 'image') {
           o.src = typeof it.src === 'string' && /^data:image\/(?:png|jpe?g|gif|webp|svg\+xml|avif);base64,[A-Za-z0-9+/=]+$/.test(it.src) ? it.src : '';
           if (Number.isFinite(Number(it.ratio))) o.ratio = Number(it.ratio);
+          const c = cropOf(it);
+          if (c) o.crop = c;
         }
         items.push(o);
       } else if (it.type === 'line') {
@@ -556,7 +579,7 @@
   }
 
   return {
-    EXT, SHAPES, DEFAULT_TAIL, DEFAULT_SIDES, sidesOf, tailOf, tailPoint, DEFAULT_SHAPE_STYLE, DEFAULT_LINE_STYLE, META_ID, shapeStyle, normalizeModel,
+    EXT, SHAPES, cropOf, shownRatio, DEFAULT_TAIL, DEFAULT_SIDES, sidesOf, tailOf, tailPoint, DEFAULT_SHAPE_STYLE, DEFAULT_LINE_STYLE, META_ID, shapeStyle, normalizeModel,
     rotate, rotOf, toLocal, toWorld, corners, contains, center,
     newModel, polygon, shapeOutline, textBox, linePoints, boundaryPoint, sidePoint, midPoint, byId, bounds,
     wrapText, itemSvg, toSvg, fromSvg, isDiagramPath,

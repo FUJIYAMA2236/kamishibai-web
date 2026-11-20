@@ -212,7 +212,7 @@ theme.css は、ツールのスタイル（runtime.css）の後ろにそのま�
 | セレクタ | 対象 |
 | --- | --- |
 | `.ks-slide` | スライド 1 枚 |
-| `.ks-layout-title` `.ks-layout-section` `.ks-layout-content` `.ks-layout-center` `.ks-layout-columns` `.ks-layout-image-right` `.ks-layout-image-left` `.ks-layout-image-full` `.ks-layout-quote` | レイアウト別（タイトル / セクション / 標準 / 中央寄せ / カラム / 画像：右 / 画像：左 / 画像：全面 / 引用） |
+| `.ks-layout-title` `.ks-layout-section` `.ks-layout-content` `.ks-layout-center` `.ks-layout-columns` `.ks-layout-image-right` `.ks-layout-image-left` `.ks-layout-image-full` `.ks-layout-quote` `.ks-layout-grid` | レイアウト別（タイトル / セクション / 標準 / 中央寄せ / カラム / 画像：右 / 画像：左 / 画像：全面 / 引用 / 升目（手動配置）） |
 | `.ks-bg` / `.ks-inner` / `.ks-main` | 背景 / 中身の外枠 / 見出しと本文 |
 | `.ks-head` / `.ks-body` / `.ks-media` | 見出し / 本文 / 横に置いた画像 |
 | `.ks-cols` / `.ks-col` / `.ks-cols-pre` / `.ks-cols-post` | カラム全体 / 1 列 / カラムの前後の全幅の部分 |
@@ -230,7 +230,7 @@ theme.css は、ツールのスタイル（runtime.css）の後ろにそのま�
 | `.ks-deck` | `data-title-align` | `left` `center`（トークン `titleAlign`） |
 | `.ks-deck` | `data-body-align` | `top` `center`（トークン `bodyAlign`） |
 | `.ks-deck` | `data-col-style` | `none` `outline` `fill` `card`（トークン `colStyle`） |
-| `.ks-slide` | `data-layout` | `title` `section` `content` `center` `columns` `image-right` `image-left` `image-full` `quote` |
+| `.ks-slide` | `data-layout` | `title` `section` `content` `center` `columns` `image-right` `image-left` `image-full` `quote` `grid` |
 | `.ks-slide` | `data-align` / `data-valign` | `left` `center` / `top` `center` |
 | `.ks-slide` | `data-col-style` / `data-col-align` / `data-col-valign` | カラムのスライドだけ。`none` `outline` `fill` `card` / `left` `center` / `top` `center` `bottom` |
 | `.ks-slide` | `data-col-dir` | カラムのスライドだけ。並べ方: `row`（横）`column`（縦）`grid`（2 列の格子） |
