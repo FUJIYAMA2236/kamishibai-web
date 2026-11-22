@@ -3,6 +3,9 @@
 **書くことに集中できる、スライドツール。**
 Markdown で内容を書くと、テーマに沿ってスライドが整います。見た目の調整は GUI で。発表・配布資料・.pptx / .odp への書き出しまで、1 つの原稿から。
 
+> **Web 版はブラウザでそのまま使えます → https://kamishibai-web.pages.dev/**
+> インストール不要。.kami ファイルをドロップして開き、編集・書き出しができます（作り・公開のしかたは [docs/WEB.md](docs/WEB.md)）。
+
 ![Kamishibai の編集画面。左にスライドのプレビュー、右に原稿](decks/demo/assets/screen-overview.jpg)
 
 - **軽い** — デスクトップアプリは Tauri 製で、Windows では exe 1 本（約 6MB）。Node.js も Chrome も要りません
@@ -94,7 +97,9 @@ Markdown で内容を書くと、テーマに沿ってスライドが整いま�
 
 ## 使う
 
-**[Releases](https://github.com/FUJIYAMA2236/kamishibai/releases/latest) からダウンロードしてください**（Windows 10 / 11、64 ビット）。
+**ブラウザで使う**: [https://kamishibai-web.pages.dev/](https://kamishibai-web.pages.dev/)（インストール不要。Chrome / Edge がおすすめ）
+
+**デスクトップアプリを使う**: [Releases](https://github.com/FUJIYAMA2236/kamishibai/releases/latest) からダウンロードしてください（Windows 10 / 11、64 ビット）。
 
 - **インストーラー**（`Kamishibai_<版>_x64-setup.exe`）… おすすめ。インストールすると、`.kami` をダブルクリックで開けるようになります
 - **インストール不要の exe**（`Kamishibai_<版>_x64_portable.exe`）… 置いた場所でそのまま起動できます
