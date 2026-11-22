@@ -158,6 +158,19 @@
   }
   const flushSave = () => Promise.all([save('md'), save('design')]);
 
+  // .kami への書き戻し（裏で少し遅れて行う）が失敗していたら、「保存済み」のままにしない
+  let kamiSaveFailed = false;
+  function showKamiSaveError(message) {
+    if (message) {
+      if (!kamiSaveFailed) toast('.kami ファイルへの保存に失敗しました: ' + message, true);
+      kamiSaveFailed = true;
+      setStatus('error', '.kami への保存に失敗: ' + message);
+    } else if (kamiSaveFailed) {
+      kamiSaveFailed = false;
+      setStatus('saved');
+    }
+  }
+
   // 外部エディタ（VS Code など）や git 操作でファイルが変わったら取り込む
   async function pollExternalChanges() {
     if (!state.project || document.hidden || state.saving || state.dirty.md || state.dirty.design) return;
@@ -165,6 +178,7 @@
     try {
       const stat = await api('GET', deckUrl('/stat'));
       if (name !== state.name || state.saving || state.dirty.md || state.dirty.design) return;
+      showKamiSaveError(stat.saveError);
       if (stat.md === state.mtime.md && stat.design === state.mtime.design && stat.css === state.mtime.css) return;
       const d = await api('GET', deckUrl());
       if (name !== state.name || state.dirty.md || state.dirty.design) return;

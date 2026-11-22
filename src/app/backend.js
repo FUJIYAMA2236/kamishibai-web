@@ -27,7 +27,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (schema, parse, render, P) {
   'use strict';
 
-  const VERSION = '0.5.0';
+  const VERSION = '0.5.1';
   const KAMI_EXT = '.kami';
   const enc = new TextEncoder();
   const dec = new TextDecoder();
@@ -89,6 +89,14 @@
     opts = opts || {};
     const H = host;
     const exists = async (p) => !!(await H.stat(p));
+    /**
+     * 書き出し先・.kami の置き場所のフォルダを用意する。失敗しても続ける:
+     * アプリでは「選んだファイル」だけが許可で、その親フォルダは許可の外（fs_mkdir が拒否される）。
+     * フォルダはたいていすでにあり、無ければこの後の書き込みが失敗して知らせる
+     */
+    async function ensureParent(file) {
+      try { await H.mkdir(P.dirname(file)); } catch (e) { /* 上のとおり */ }
+    }
     const isDir = async (p) => { const s = await H.stat(p); return !!(s && s.isDir); };
     const readText = async (p) => { const s = await H.stat(p); return s && s.isFile ? lf(toText(await H.readFile(p))) : null; };
     const mtime = async (p) => { const s = await H.stat(p); return s ? Math.round(s.mtime) : 0; };
@@ -299,7 +307,7 @@
       out = H.absolute(String(out || '').trim());
       if (!out) throw new UserError('書き出す場所を指定してください');
       if (!/\.zip$/i.test(out)) out += '.zip';
-      await H.mkdir(P.dirname(out));
+      await ensureParent(out);
       await H.writeFile(out, await H.zip.write(entries));
       exported.add(out);
       return { file: out };
@@ -416,7 +424,7 @@
       const loc = id ? await project.themeDirOf(id) : null;
       if (loc && loc.kind === 'user') await collect(loc.dir, 'themes/' + id + '/', entries);
       const tmp = kamiFile + '.saving';
-      await H.mkdir(P.dirname(kamiFile));
+      await ensureParent(kamiFile);
       await H.writeFile(tmp, await H.zip.write(entries));
       await H.rename(tmp, kamiFile);
       return kamiFile;
@@ -447,6 +455,7 @@
     let repackTimer = 0;
     let repackPending = false;
     let repacking = Promise.resolve();
+    let repackError = null; // 最後の .kami への書き戻しの失敗（成功したら null）
     const workRoot = () => opts.workRoot || P.join(userData(), 'open');
     const workDirFor = (k) => P.join(workRoot(), hash(k));
     const recentFile = () => P.join(userData(), 'recent.json');
@@ -471,8 +480,15 @@
       repacking = repacking.then(async () => {
         if (!repackPending || !project || !project.kamiFile) return;
         repackPending = false;
-        await packProject(project, project.kamiFile);
-      }).catch((e) => { if (typeof console !== 'undefined') console.error('[kamishibai] .kami の保存に失敗:', e && e.message); });
+        try {
+          await packProject(project, project.kamiFile);
+          repackError = null;
+        } catch (e) {
+          repackPending = true; // 次の保存・閉じるときにもう一度試す
+          repackError = (e && e.message) || String(e);
+          if (typeof console !== 'undefined') console.error('[kamishibai] .kami の保存に失敗:', repackError);
+        }
+      });
       return repacking;
     }
     function scheduleRepack() {
@@ -786,7 +802,7 @@
     const filesDirFor = (file) => P.basename(file, P.extname(file)) + '_files';
 
     async function writeOut(file, result) {
-      await H.mkdir(P.dirname(file));
+      await ensureParent(file);
       const bytes = enc.encode(result.html);
       await H.writeFile(file, bytes);
       for (const f of result.files || []) {
@@ -819,7 +835,7 @@
       try {
         const html = P.join(tmp, 'print.html');
         await H.writeFile(html, built.html);
-        await H.mkdir(P.dirname(file));
+        await ensureParent(file);
         await H.removeFile(file);
         await H.pdf(html, file, { kind: doc ? 'doc' : 'slides', width: built.width, height: built.height });
         const s = await H.stat(file);
@@ -833,7 +849,7 @@
     async function saveExportFile(p, kind, format, out, bytes) {
       if (!/^(docx|odt|pptx|odp)$/.test(format)) throw new UserError('対応していない形式です: ' + format);
       const file = outPath(p, out, (kind === 'doc' ? '-資料.' : '.') + format);
-      await H.mkdir(P.dirname(file));
+      await ensureParent(file);
       await H.writeFile(file, bytes);
       return { file, bytes: bytes.length, warnings: [] };
     }
@@ -901,7 +917,7 @@
         const p = current();
         const action = seg[2];
         if (!action && method === 'GET') return ok(Object.assign(await p.read(), { kamiFile: p.kamiFile, temporary: p.temporary }));
-        if (action === 'stat' && method === 'GET') return ok(await p.stat());
+        if (action === 'stat' && method === 'GET') return ok(Object.assign(await p.stat(), { saveError: p.kamiFile ? repackError : null, savePending: !!(p.kamiFile && repackPending) }));
         if (action === 'md' && method === 'PUT') return ok({ mtime: await p.writeMd(toText(bodyBytes(body))) });
         if (action === 'design' && method === 'PUT') return ok({ mtime: await p.writeDesign(bodyJson(body)) });
         if (action === 'assets' && method === 'POST') return ok({ path: await p.saveAsset(query.name, bodyBytes(body)) }, 201);

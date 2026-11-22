@@ -392,3 +392,39 @@ test('セキュリティ: ブラウザ版のサーバーは CSP を付け、プ�
   assert.match(svg.headers['content-security-policy'], /sandbox/);
   assert.match(svg.headers['content-security-policy'], /default-src 'none'/);
 });
+
+test('.kami: 置き場所のフォルダを作れなくても（アプリの許可の外）書き戻せる・失敗は stat で知らせる', async (t) => {
+  const dir = tempDir(t);
+  const kamiPath = path.join(dir, '許可.kami');
+  // アプリと同じく「選んだファイル」だけが許可で、親フォルダの mkdir は拒否する host
+  const host = createNodeHost();
+  const mkdir = host.mkdir;
+  let failWrite = false;
+  host.mkdir = async (p) => { if (P.same(p, dir)) throw new Error('KS_DENIED: 許可の外'); return mkdir(p); };
+  const writeFile = host.writeFile;
+  host.writeFile = async (p, d) => { if (failWrite && p.endsWith('.saving')) throw new Error('KS_DENIED: 書けない'); return writeFile(p, d); };
+  const b = createBackend(host, {
+    workRoot: path.join(tempDir(t), 'work'),
+    markdownit: require(path.join(TOOL_ROOT, 'vendor', 'markdown-it.min.js')),
+  });
+  fs.writeFileSync(kamiPath, await require('../src/node/zip').writeZip([{ name: 'slides.md', data: Buffer.from('# 最初') }]));
+  await b.openKami(kamiPath);
+  const put = (md) => b.api('PUT', ['api', 'project', 'md'], {}, md);
+  const stat = async () => (await b.api('GET', ['api', 'project', 'stat'], {})).json;
+
+  await put('# 書き換えた');
+  await b.flush();
+  assert.match(readZip(fs.readFileSync(kamiPath)).find((e) => e.name === 'slides.md').data.toString(), /書き換えた/);
+  assert.equal((await stat()).saveError, null);
+
+  failWrite = true;
+  await put('# 書けない');
+  await b.flush();
+  assert.match((await stat()).saveError, /書けない/);
+  assert.match(readZip(fs.readFileSync(kamiPath)).find((e) => e.name === 'slides.md').data.toString(), /書き換えた/);
+
+  failWrite = false; // 直ったら、次の書き戻しで失敗が消え、取りこぼした変更も入る
+  await b.flush();
+  assert.equal((await stat()).saveError, null);
+  assert.match(readZip(fs.readFileSync(kamiPath)).find((e) => e.name === 'slides.md').data.toString(), /書けない/);
+});

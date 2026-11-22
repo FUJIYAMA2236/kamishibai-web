@@ -108,6 +108,7 @@ async function main() {
       const stop = () => { backend.flush().then(() => process.exit(0)); };
       process.on('SIGINT', stop);
       process.on('SIGTERM', stop);
+      process.on('SIGHUP', stop);
       break;
     }
     case 'new': {
