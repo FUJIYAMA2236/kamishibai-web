@@ -39,7 +39,7 @@
     </div>
   </div>
 
-  <span class="status" id="status" data-state="saved"><i></i><span>保存済み</span></span>
+  <button type="button" class="status" id="status" data-state="saved" aria-live="polite"><i></i><span>保存済み</span></button>
   <span class="spacer"></span>
 
   <button class="btn ghost icon" id="btnSwap" title="プレビューと編集パネルの左右を入れ替える" aria-label="左右を入れ替える">
@@ -135,47 +135,53 @@
       <button type="button" data-side="design">
         <svg viewBox="0 0 24 24"><circle cx="13.5" cy="6.5" r="1.6"/><circle cx="17.5" cy="10.5" r="1.6"/><circle cx="8.5" cy="7.5" r="1.6"/><circle cx="6.5" cy="12.5" r="1.6"/><path d="M12 21a9 9 0 1 1 9-9c0 2.5-2 3-3.5 3H15a2 2 0 0 0-1.5 3.3c.5.6.3 2.7-1.5 2.7z"/></svg>デザイン
       </button>
+      <span class="spacer"></span>
+      <div class="mode-seg" id="modeSeg" role="tablist" aria-label="原稿の表示">
+        <button type="button" data-mode="live" title="書きながら見た目に反映（カーソルのある行だけ記号を表示）">ライブ</button>
+        <button type="button" data-mode="source" title="Markdown の記号をすべて表示">ソース</button>
+      </div>
     </div>
 
     <section class="side-page" id="pageWrite">
       <div class="toolbar" id="toolbar">
-        <button data-insert="slide" title="新しいスライドを今のスライドの後ろに追加"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M12 9.5v5M9.5 12h5"/></svg><span>スライド</span></button>
-        <button data-insert="image" title="画像を挿入（ドラッグ＆ドロップや貼り付けでも可）"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 3.5 3 2.5-2 4 3.5"/></svg><span>画像</span></button>
-        <button data-insert="diagram" title="図形を描く（工程図・ブロック図など。図形エディタが開きます）"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="7" height="5" rx="1.5"/><path d="M13.5 15.5l3.5-4 3.5 4z"/><circle cx="7" cy="17" r="3"/><path d="M10.5 6.5h4.5a2 2 0 0 1 2 2v2"/></svg><span>図形</span></button>
-        <button data-insert="mermaid" title="図（mermaid 記法）"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="7" height="5" rx="1.5"/><rect x="13.5" y="15" width="7" height="5" rx="1.5"/><path d="M7 9v5.5a3 3 0 0 0 3 3h3.5"/></svg><span>図</span></button>
-        <button data-insert="columns" title="カラム（::: columns 〜 ::: の範囲を ||| で左右に分ける）"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M12 5v14"/></svg><span>カラム</span></button>
-        <button data-insert="table" title="表"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 10h17M3.5 14.5h17M9.5 5v14"/></svg><span>表</span></button>
-        <button data-insert="code" title="コードブロック"><svg viewBox="0 0 24 24"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/></svg><span>コード</span></button>
-        <button data-insert="notes" title="発表者ノート（??? 以降）"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v10H10l-5 3.5z"/></svg><span>ノート</span></button>
-        <span class="spacer"></span>
-        <div class="mode-seg" id="modeSeg" role="tablist" aria-label="表示の切り替え">
-          <button type="button" data-mode="live" title="書きながら見た目に反映（カーソルのある行だけ記号を表示）">ライブ</button>
-          <button type="button" data-mode="source" title="Markdown の記号をすべて表示">ソース</button>
+        <div class="menu-anchor">
+          <button type="button" class="insert-btn" id="btnInsert" aria-haspopup="menu" aria-expanded="false" title="スライド・画像・図形・表などを挿入"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg><span>挿入</span><svg class="caret" viewBox="0 0 24 24"><path d="M7 10l5 5 5-5"/></svg></button>
+          <div class="menu insert-menu" id="insertMenu" role="menu" hidden>
+            <button type="button" role="menuitem" data-insert="slide"><svg viewBox="0 0 24 24"><rect x="3.5" y="5.5" width="17" height="13" rx="2.5"/><path d="M12 9.5v5M9.5 12h5"/></svg><span><b>スライド</b><small>今のスライドの後ろに追加</small></span></button>
+            <button type="button" role="menuitem" data-insert="image"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4.5 17l5-4.5 3.5 3 2.5-2 4 3.5"/></svg><span><b>画像</b><small>ファイルを選ぶ（ドロップや貼り付けでも可）</small></span></button>
+            <button type="button" role="menuitem" data-insert="diagram"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="7" height="5" rx="1.5"/><path d="M13.5 15.5l3.5-4 3.5 4z"/><circle cx="7" cy="17" r="3"/><path d="M10.5 6.5h4.5a2 2 0 0 1 2 2v2"/></svg><span><b>図形</b><small>図形エディタで工程図やブロック図を描く</small></span></button>
+            <button type="button" role="menuitem" data-insert="mermaid"><svg viewBox="0 0 24 24"><rect x="3.5" y="4" width="7" height="5" rx="1.5"/><rect x="13.5" y="15" width="7" height="5" rx="1.5"/><path d="M7 9v5.5a3 3 0 0 0 3 3h3.5"/></svg><span><b>図（mermaid）</b><small>文字で書くフローチャートなど</small></span></button>
+            <button type="button" role="menuitem" data-insert="columns"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M12 5v14"/></svg><span><b>カラム</b><small>内容を左右に並べる</small></span></button>
+            <button type="button" role="menuitem" data-insert="table"><svg viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><path d="M3.5 10h17M3.5 14.5h17M9.5 5v14"/></svg><span><b>表</b><small>行と列の表</small></span></button>
+            <button type="button" role="menuitem" data-insert="code"><svg viewBox="0 0 24 24"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/></svg><span><b>コード</b><small>コードブロック</small></span></button>
+            <button type="button" role="menuitem" data-insert="notes"><svg viewBox="0 0 24 24"><path d="M5 5.5h14v10H10l-5 3.5z"/></svg><span><b>発表者ノート</b><small>発表者ビューにだけ出るメモ</small></span></button>
+          </div>
         </div>
-      </div>
-      <!-- 書式ボタン（Markdown を書けなくても使えるように）。選択した文字・行に効く -->
-      <div class="format-bar" id="formatBar">
-        <select id="fmtBlock" title="段落の種類（見出し / 本文）">
-          <option value="">段落…</option>
-          <option value="h1">大見出し（表紙）</option>
-          <option value="h2">見出し</option>
-          <option value="h3">小見出し</option>
-          <option value="p">本文</option>
-        </select>
         <span class="sep"></span>
-        <button data-fmt="bold" title="太字 (Ctrl+B)"><b>B</b></button>
-        <button data-fmt="italic" title="強調 (Ctrl+I)"><i>I</i></button>
-        <button data-fmt="strike" title="取り消し線"><s>S</s></button>
-        <button data-fmt="mark" title="マーカー"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-8 8H6.5v-5z"/><path d="M4 20.5h16"/></svg></button>
-        <button data-fmt="code" title="コード（等幅）"><svg viewBox="0 0 24 24"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/></svg></button>
-        <button data-fmt="link" title="リンク"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></button>
-        <span class="sep"></span>
-        <button data-fmt="ul" title="箇条書き"><svg viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="5" cy="17" r="1.2"/><path d="M9.5 7H20M9.5 12H20M9.5 17H20"/></svg></button>
-        <button data-fmt="ol" title="番号付きリスト"><svg viewBox="0 0 24 24"><path d="M4 5.5h1.5V9M4 9h3M4 14.5c0-.8.7-1.3 1.5-1.3s1.5.5 1.5 1.2c0 1.1-3 1.8-3 3.1h3"/><path d="M10.5 7H20M10.5 12H20M10.5 17H20"/></svg></button>
-        <button data-fmt="quote" title="引用"><svg viewBox="0 0 24 24"><path d="M5 6.5v11M9.5 8H19M9.5 12H19M9.5 16H16"/></svg></button>
-        <span class="spacer"></span>
-        <button data-fmt="undo" title="元に戻す (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5h10a5 5 0 0 1 0 10H11"/></svg></button>
-        <button data-fmt="redo" title="やり直し (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5h-10a5 5 0 0 0 0 10H13"/></svg></button>
+        <!-- 書式ボタン（Markdown を書けなくても使えるように）。選択した文字・行に効く -->
+        <div class="format-bar" id="formatBar">
+          <select id="fmtBlock" title="段落の種類（見出し / 本文）">
+            <option value="">段落…</option>
+            <option value="h1">大見出し（表紙）</option>
+            <option value="h2">見出し</option>
+            <option value="h3">小見出し</option>
+            <option value="p">本文</option>
+          </select>
+          <span class="sep"></span>
+          <button data-fmt="bold" title="太字 (Ctrl+B)"><b>B</b></button>
+          <button data-fmt="italic" title="強調 (Ctrl+I)"><i>I</i></button>
+          <button data-fmt="strike" title="取り消し線"><s>S</s></button>
+          <button data-fmt="mark" title="マーカー"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-8 8H6.5v-5z"/><path d="M4 20.5h16"/></svg></button>
+          <button data-fmt="code" title="コード（等幅）"><svg viewBox="0 0 24 24"><path d="M8.5 7.5L4 12l4.5 4.5M15.5 7.5L20 12l-4.5 4.5"/></svg></button>
+          <button data-fmt="link" title="リンク"><svg viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></svg></button>
+          <span class="sep"></span>
+          <button data-fmt="ul" title="箇条書き"><svg viewBox="0 0 24 24"><circle cx="5" cy="7" r="1.2"/><circle cx="5" cy="12" r="1.2"/><circle cx="5" cy="17" r="1.2"/><path d="M9.5 7H20M9.5 12H20M9.5 17H20"/></svg></button>
+          <button data-fmt="ol" title="番号付きリスト"><svg viewBox="0 0 24 24"><path d="M4 5.5h1.5V9M4 9h3M4 14.5c0-.8.7-1.3 1.5-1.3s1.5.5 1.5 1.2c0 1.1-3 1.8-3 3.1h3"/><path d="M10.5 7H20M10.5 12H20M10.5 17H20"/></svg></button>
+          <button data-fmt="quote" title="引用"><svg viewBox="0 0 24 24"><path d="M5 6.5v11M9.5 8H19M9.5 12H19M9.5 16H16"/></svg></button>
+          <span class="spacer"></span>
+          <button data-fmt="undo" title="元に戻す (Ctrl+Z)"><svg viewBox="0 0 24 24"><path d="M9 14L4.5 9.5 9 5"/><path d="M4.5 9.5h10a5 5 0 0 1 0 10H11"/></svg></button>
+          <button data-fmt="redo" title="やり直し (Ctrl+Y)"><svg viewBox="0 0 24 24"><path d="M15 14l4.5-4.5L15 5"/><path d="M19.5 9.5h-10a5 5 0 0 0 0 10H13"/></svg></button>
+        </div>
       </div>
       <div class="editor-host" id="editorHost"></div>
       <input type="file" id="filePicker" accept="image/*" multiple hidden>

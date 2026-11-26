@@ -127,7 +127,7 @@
     const el = $('#status');
     el.dataset.state = kind;
     el.lastElementChild.textContent = message || (kind === 'saving' ? '保存中…' : '保存済み');
-    el.title = kind === 'error' ? message : '変更は自動で保存されます (Ctrl+S で今すぐ保存)';
+    el.title = kind === 'error' ? message : kind === 'temp' ? 'まだ保存先がありません。押すと 1 ファイル（.kami）として保存します' : '変更は自動で保存されます (Ctrl+S で今すぐ保存)';
   }
   function markDirty(kind) {
     state.dirty[kind] = true;
@@ -154,7 +154,7 @@
       return;
     }
     state.saving--;
-    if (!state.saving && !state.dirty.md && !state.dirty.design) setStatus('saved');
+    if (!state.saving && !state.dirty.md && !state.dirty.design) setStatus(state.project && state.project.temporary ? 'temp' : 'saved', state.project && state.project.temporary ? '保存先を選ぶ' : undefined);
   }
   const flushSave = () => Promise.all([save('md'), save('design')]);
 
@@ -1216,7 +1216,7 @@
     $('#startScreen').hidden = true;
     renderPanel();
     state.tempEdited = false;
-    setStatus(info.temporary ? 'temp' : 'saved', info.temporary ? '未保存（保存先を選んでください）' : undefined);
+    setStatus(info.temporary ? 'temp' : 'saved', info.temporary ? '保存先を選ぶ' : undefined);
     app.emit('open');
   }
 
@@ -1258,6 +1258,15 @@
     }
   }
 
+  /** 「最近使ったもの」に出す場所: 入っているフォルダの末尾 2 階層（長いパスは途中で切れて読めないため） */
+  function shortPlace(p) {
+    const text = String(p || '');
+    const sep = text.includes('\\') ? '\\' : '/';
+    const parts = text.split(/[\\/]+/).filter(Boolean);
+    parts.pop(); // 自分自身の名前は上に太字で出している
+    return parts.length > 2 ? '…' + sep + parts.slice(-2).join(sep) : parts.join(sep);
+  }
+
   function showStart(s) {
     document.body.classList.add('is-start');
     $('#startScreen').hidden = false;
@@ -1292,7 +1301,7 @@
         recent.append(h('button', {
           type: 'button', class: 'start-recent-item', title: r.label || r.path,
           onclick: () => (bridge ? bridge.openPath(r.path) : browserAction('open', { path: r.path })),
-        }, h('span', { class: 'kind' }, r.kind === 'kami' ? '.kami' : 'フォルダ'), h('b', null, r.name), h('small', null, r.label || r.path)));
+        }, h('span', { class: 'kind' }, r.kind === 'kami' ? '.kami' : 'フォルダ'), h('b', null, r.name), h('small', null, r.label || shortPlace(r.path))));
       }
     }
   }
@@ -1455,6 +1464,7 @@
     document.querySelectorAll('#sideTabs [data-side]').forEach((b) => b.classList.toggle('is-active', b.dataset.side === state.side));
     $('#pageWrite').hidden = state.side !== 'write';
     $('#pageDesign').hidden = state.side !== 'design';
+    $('#modeSeg').hidden = state.side !== 'write';
     if (state.side === 'design') renderPanel();
     app.emit('side', state.side);
   }
@@ -1579,10 +1589,27 @@
     $('#filePicker').addEventListener('change', (e) => { uploadImages(Array.from(e.target.files)); e.target.value = ''; });
     const toolbar = $('#toolbar');
     // ボタンを押してもテキスト入力からフォーカスが外れないようにする（カーソル位置に挿入するため）
-    toolbar.addEventListener('mousedown', (e) => { if (e.target.closest('[data-insert]')) e.preventDefault(); });
+    toolbar.addEventListener('mousedown', (e) => { if (e.target.closest('[data-insert], #btnInsert')) e.preventDefault(); });
+    const insertMenu = $('#insertMenu');
+    const insertBtn = $('#btnInsert');
+    const setInsertOpen = (open) => { insertMenu.hidden = !open; insertBtn.setAttribute('aria-expanded', open ? 'true' : 'false'); };
+    insertBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setInsertOpen(insertMenu.hidden);
+      if (!insertMenu.hidden && e.detail === 0) { const first = insertMenu.querySelector('button'); if (first) first.focus(); } // キーボードで開いたときは最初の項目へ
+    });
+    document.addEventListener('click', (e) => { if (!insertMenu.hidden && !insertMenu.contains(e.target)) setInsertOpen(false); });
+    insertMenu.addEventListener('keydown', (e) => {
+      const items = Array.from(insertMenu.querySelectorAll('button'));
+      const i = items.indexOf(document.activeElement);
+      if (e.key === 'Escape') { e.preventDefault(); setInsertOpen(false); insertBtn.focus(); }
+      if (e.key === 'ArrowDown') { e.preventDefault(); items[(i + 1) % items.length].focus(); }
+      if (e.key === 'ArrowUp') { e.preventDefault(); items[(i - 1 + items.length) % items.length].focus(); }
+    });
     toolbar.addEventListener('click', (e) => {
       const b = e.target.closest('[data-insert]');
       if (!b) return;
+      setInsertOpen(false);
       if (b.dataset.insert === 'image') $('#filePicker').click();
       else if (b.dataset.insert === 'diagram') { if (app.diagram) app.diagram.open({}); }
       else insertSnippet(b.dataset.insert);
