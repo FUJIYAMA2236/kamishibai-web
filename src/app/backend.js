@@ -27,7 +27,7 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (schema, parse, render, P) {
   'use strict';
 
-  const VERSION = '0.5.1';
+  const VERSION = '0.5.2';
   const KAMI_EXT = '.kami';
   const enc = new TextEncoder();
   const dec = new TextDecoder();
